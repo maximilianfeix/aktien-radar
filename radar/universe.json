@@ -1,0 +1,71 @@
+{
+  "us": {
+    "label": "US-Aktien",
+    "currency": "USD",
+    "tickers": {
+      "AAPL": "Apple", "MSFT": "Microsoft", "NVDA": "Nvidia", "AMZN": "Amazon", "GOOGL": "Alphabet",
+      "META": "Meta Platforms", "TSLA": "Tesla", "AVGO": "Broadcom", "BRK-B": "Berkshire Hathaway",
+      "LLY": "Eli Lilly", "JPM": "JPMorgan Chase", "V": "Visa", "MA": "Mastercard", "UNH": "UnitedHealth",
+      "XOM": "Exxon Mobil", "COST": "Costco", "HD": "Home Depot", "PG": "Procter & Gamble",
+      "JNJ": "Johnson & Johnson", "WMT": "Walmart", "NFLX": "Netflix", "ORCL": "Oracle",
+      "CRM": "Salesforce", "AMD": "AMD", "ADBE": "Adobe", "KO": "Coca-Cola", "PEP": "PepsiCo",
+      "MRK": "Merck & Co.", "ABBV": "AbbVie", "BAC": "Bank of America", "CVX": "Chevron",
+      "TMO": "Thermo Fisher", "CSCO": "Cisco", "ACN": "Accenture", "MCD": "McDonald's", "LIN": "Linde",
+      "ABT": "Abbott", "INTU": "Intuit", "QCOM": "Qualcomm", "TXN": "Texas Instruments",
+      "GE": "GE Aerospace", "CAT": "Caterpillar", "IBM": "IBM", "DIS": "Walt Disney", "NOW": "ServiceNow",
+      "AMAT": "Applied Materials", "ISRG": "Intuitive Surgical", "GS": "Goldman Sachs", "UBER": "Uber",
+      "PLTR": "Palantir", "PANW": "Palo Alto Networks", "BKNG": "Booking Holdings",
+      "AXP": "American Express", "SPGI": "S&P Global", "NEE": "NextEra Energy", "LMT": "Lockheed Martin",
+      "UNP": "Union Pacific", "HON": "Honeywell", "PFE": "Pfizer", "T": "AT&T"
+    }
+  },
+  "eu": {
+    "label": "DE/EU-Aktien",
+    "currency": "lokal",
+    "tickers": {
+      "SAP.DE": "SAP", "SIE.DE": "Siemens", "ALV.DE": "Allianz", "DTE.DE": "Deutsche Telekom",
+      "MUV2.DE": "Munich Re", "AIR.DE": "Airbus", "BAS.DE": "BASF", "BMW.DE": "BMW",
+      "MBG.DE": "Mercedes-Benz", "VOW3.DE": "Volkswagen Vz.", "IFX.DE": "Infineon", "DHL.DE": "DHL Group",
+      "RWE.DE": "RWE", "EOAN.DE": "E.ON", "ADS.DE": "Adidas", "DB1.DE": "Deutsche Börse",
+      "DBK.DE": "Deutsche Bank", "BAYN.DE": "Bayer", "RHM.DE": "Rheinmetall", "HEI.DE": "Heidelberg Materials",
+      "MRK.DE": "Merck KGaA", "ENR.DE": "Siemens Energy", "SHL.DE": "Siemens Healthineers",
+      "CBK.DE": "Commerzbank", "HNR1.DE": "Hannover Rück", "ASML.AS": "ASML", "ADYEN.AS": "Adyen",
+      "PRX.AS": "Prosus", "MC.PA": "LVMH", "OR.PA": "L'Oréal", "TTE.PA": "TotalEnergies",
+      "SAN.PA": "Sanofi", "AI.PA": "Air Liquide", "SU.PA": "Schneider Electric", "RMS.PA": "Hermès",
+      "BNP.PA": "BNP Paribas", "NESN.SW": "Nestlé", "RO.SW": "Roche", "NOVN.SW": "Novartis",
+      "NOVO-B.CO": "Novo Nordisk", "AZN.L": "AstraZeneca", "SHEL.L": "Shell", "HSBA.L": "HSBC",
+      "ULVR.L": "Unilever", "ITX.MC": "Inditex", "SAN.MC": "Banco Santander", "IBE.MC": "Iberdrola",
+      "ENEL.MI": "Enel", "ISP.MI": "Intesa Sanpaolo", "UCG.MI": "UniCredit"
+    }
+  },
+  "etf": {
+    "label": "ETFs",
+    "currency": "lokal",
+    "tickers": {
+      "EUNL.DE": "iShares Core MSCI World", "VWCE.DE": "Vanguard FTSE All-World",
+      "SXR8.DE": "iShares Core S&P 500", "SXRV.DE": "iShares Nasdaq 100", "EXS1.DE": "iShares Core DAX",
+      "EXSA.DE": "iShares STOXX Europe 600", "IS3N.DE": "iShares Core MSCI EM IMI",
+      "IUSN.DE": "iShares MSCI World Small Cap", "IS3R.DE": "iShares MSCI World Momentum",
+      "IS3Q.DE": "iShares MSCI World Quality", "XDWT.DE": "Xtrackers MSCI World IT",
+      "XDWH.DE": "Xtrackers MSCI World Health Care", "ZPRV.DE": "SPDR USA Small Cap Value",
+      "IQQH.DE": "iShares Global Clean Energy", "EUNH.DE": "iShares Core Euro Govt Bond",
+      "4GLD.DE": "Xetra-Gold", "SPY": "SPDR S&P 500 (US)", "QQQ": "Invesco Nasdaq 100 (US)",
+      "IWM": "iShares Russell 2000 (US)", "EFA": "iShares MSCI EAFE (US)",
+      "EEM": "iShares MSCI Emerging Markets (US)", "TLT": "iShares 20+ Year Treasury (US)",
+      "IEF": "iShares 7-10 Year Treasury (US)", "GLD": "SPDR Gold (US)", "VNQ": "Vanguard Real Estate (US)",
+      "DBC": "Invesco Commodity Index (US)"
+    }
+  },
+  "crypto": {
+    "label": "Krypto",
+    "currency": "USD",
+    "tickers": {
+      "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana", "BNB-USD": "BNB",
+      "XRP-USD": "XRP", "ADA-USD": "Cardano", "DOGE-USD": "Dogecoin", "AVAX-USD": "Avalanche",
+      "LINK-USD": "Chainlink", "DOT-USD": "Polkadot", "LTC-USD": "Litecoin"
+    }
+  },
+  "benchmarks": {
+    "^GSPC": "S&P 500", "^GDAXI": "DAX", "^STOXX50E": "Euro Stoxx 50", "^VIX": "VIX"
+  }
+}
