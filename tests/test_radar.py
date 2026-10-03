@@ -140,6 +140,13 @@ def test_momentum_rotation_picks_winners_and_stays_in_cash_without_uptrend():
     assert backtest.momentum_rotation(falling, top_n=1).iloc[-1].sum() == 0.0
 
 
+def test_momentum_rotation_never_exceeds_full_investment_on_ties():
+    close = pd.DataFrame({name: trending(400, 0.001) for name in "ABCD"})
+    weights = backtest.momentum_rotation(close, top_n=3)
+    assert (weights.iloc[-1] > 0).sum() == 3
+    assert weights.iloc[-1].sum() == pytest.approx(1.0)
+
+
 def test_dual_momentum_moves_to_bonds_when_equities_fall():
     close = pd.DataFrame({"SPY": trending(400, -0.001), "EFA": trending(400, -0.002),
                           "IEF": trending(400, 0.0001)})

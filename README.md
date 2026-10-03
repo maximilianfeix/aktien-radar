@@ -44,6 +44,7 @@ Backtest gut aussieht. Deshalb gilt hier:
 - Jeder Backtest zeigt die Zeit bis 2020 und die Zeit seit 2021 getrennt.
 - Handelskosten sind eingerechnet (0,1 % je Umschichtung, Krypto 0,2 %).
 - Ein Signal vom Tagesschluss wirkt erst am nächsten Tag.
+- Renditen sind in Handelswährung gerechnet; Wechselkurseffekte (etwa USD/EUR) fehlen.
 - Tests auf der heutigen Aktien- und Coin-Auswahl sind als geschönt markiert (Survivorship Bias) und werden bei der
   Wahl der Kernstrategie ignoriert.
 

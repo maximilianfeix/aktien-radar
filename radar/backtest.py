@@ -94,7 +94,7 @@ def momentum_rotation(close: pd.DataFrame, top_n: int, periods_per_year: int = 2
     month = periods_per_year // 12
     mom = ind.momentum(close, periods_per_year, month)
     eligible = (close > ind.sma(close, trend_window)) & (mom > 0)
-    rank = mom.where(eligible).rank(axis=1, ascending=False)
+    rank = mom.where(eligible).rank(axis=1, ascending=False, method="first")  # ties must not overfill the slots
     picked = rank <= top_n
     inv_vol = (1 / ind.annualized_vol(close, 63, periods_per_year)).where(picked)
     weights = inv_vol.div(inv_vol.sum(axis=1), axis=0).mul(picked.sum(axis=1) / top_n, axis=0)
@@ -183,7 +183,8 @@ def run_all(closes: dict[str, pd.DataFrame], cost: float = 0.001, crypto_cost: f
     for key, label, close in (("us", "US-Aktien", us), ("eu", "DE/EU-Aktien", eu)):
         if close.shape[1] >= 20:
             add(f"stock_momentum_{key}", f"Aktien-Momentum Top 10 ({label})",
-                "Monatlich die 10 stärksten Aktien über der 200-Tage-Linie, risikogewichtet.",
+                "Monatlich die 10 stärksten Aktien über der 200-Tage-Linie, risikogewichtet. "
+                "Renditen in Handelswährung, ohne Wechselkurseffekte.",
                 close, momentum_rotation(close, 10), cost, biased=True)
     if "BTC-USD" in crypto:
         btc = crypto["BTC-USD"].dropna()
