@@ -59,7 +59,7 @@ Der Bot handelt nicht selbst. Er liefert Kandidaten mit Begründung, Stop und Ku
 | **Depot-Check** | Eigene Positionen eintragen; das Radar prüft Trend, Streuung, Klumpen und anstehende Zahlen. Bleibt im Browser |
 | **Live-Bilanz** | Jedes Kaufsignal wird ab Erscheinen mitgeschrieben und beim Ende abgerechnet |
 | **Signalwechsel** | Was hoch- oder herabgestuft wurde, als Liste, Atom-Feed und Push-Nachricht |
-| **Nachrichtenlage** | Eine Claude-Routine recherchiert zu den Top-Kandidaten und verlinkt jede Aussage mit ihrer Quelle |
+| **Nachrichtenlage** (optional) | Eine Claude-Routine recherchiert zu den Top-Kandidaten und verlinkt jede Aussage mit ihrer Quelle. Braucht die Claude GitHub App im Repo |
 | **Backtests** | Zehn Strategien, mit Kosten, getrennt nach „bis 2020" und „seit 2021" |
 
 Dazu: Suche mit `/`, heller und dunkler Modus, CSV-Export, offline nutzbar, als App installierbar.
@@ -192,7 +192,7 @@ pytest && ruff check .
 
 **Kommentar zum Lauf:** Liegt das Secret `ANTHROPIC_API_KEY` im Repo, schreibt Claude eine kurze Einordnung, sobald sich die Top-Kandidaten ändern. Die Zahlen kommen immer aus den Regeln. Das Modell lässt sich über die Repo-Variable `RADAR_MODEL` ändern.
 
-**Nachrichtenlage:** Eine geplante Claude-Code-Routine recherchiert zu den Top-Kandidaten und legt ihre Notizen als `news.json` auf den Branch `claude/news`. Der Workflow übernimmt nur geprüfte Felder, kappt Texte und lässt ausschließlich `https`-Links durch.
+**Nachrichtenlage:** Dafür muss die [Claude GitHub App](https://github.com/apps/claude) für das Repo installiert sein, sonst darf die Routine nichts ablegen. Eine geplante Claude-Code-Routine recherchiert zu den Top-Kandidaten und legt ihre Notizen als `news.json` auf den Branch `claude/news`. Der Workflow übernimmt nur geprüfte Felder, kappt Texte und lässt ausschließlich `https`-Links durch.
 
 </details>
 
