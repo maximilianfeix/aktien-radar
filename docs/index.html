@@ -168,7 +168,7 @@ footer { margin-top: 48px; font-size: 13px; color: var(--ink-2); }
     </ol>
   </div>
   <footer>
-    <p>Datenquelle: Yahoo Finance (Tagesschlusskurse, verzögert). Kurse in Handelswährung. Code und Methodik: <a href="https://github.com/maximilianfeix/aktien-radar">github.com/maximilianfeix/aktien-radar</a></p>
+    <p>Datenquelle: Yahoo Finance (Tageskurse, verzögert). Signale nutzen den letzten verfügbaren Kurs, Backtests nur abgeschlossene Handelstage. Kurse in Handelswährung. Code und Methodik: <a href="https://github.com/maximilianfeix/aktien-radar">github.com/maximilianfeix/aktien-radar</a></p>
   </footer>
 </div>
 </main>
@@ -285,6 +285,13 @@ function groupSeries() {
 
 function renderChart() {
   const box = $("#bt-chart"), tip = $(".tip", box), series = groupSeries();
+  box.querySelector("svg, p")?.remove();
+  if (!series.length) {
+    $("#bt-legend").innerHTML = "";
+    box.insertAdjacentHTML("afterbegin", `<p class="small" style="padding:24px 0;margin:0">Für diese Gruppe liegen gerade keine Kursdaten vor.</p>`);
+    box.onmousemove = box.ontouchmove = box.ontouchstart = null;
+    return;
+  }
   $("#bt-legend").innerHTML = series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join("");
   const W = box.clientWidth, H = 340, direct = series.length <= 4 && W > 560;
   const m = { t: 12, r: direct ? 150 : 16, b: 28, l: 44 };
@@ -305,7 +312,6 @@ function renderChart() {
     svg += ends.map(e => `<text x="${W - m.r + 8}" y="${e.y}" font-size="12" fill="var(--ink-2)"><tspan font-weight="600" fill="var(--ink)">${num(e.s.pts.at(-1)[1])} €</tspan><tspan x="${W - m.r + 8}" dy="14">${esc(e.s.name.length > 24 ? e.s.name.slice(0, 23) + "…" : e.s.name)}</tspan></text>`).join("");
   }
   svg += `<g id="hover" style="display:none"><line y1="${m.t}" y2="${H - m.b}" stroke="var(--axis)"/>${series.map(s => `<circle r="4.5" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join("")}</g>`;
-  box.querySelector("svg")?.remove();
   box.insertAdjacentHTML("afterbegin", `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Wertentwicklung der Strategien, Werte in der Tabelle darunter">${svg}</svg>`);
   const hover = $("#hover", box), dots = hover.querySelectorAll("circle"), line = $("line", hover), ref = series[0].pts;
   const move = e => {

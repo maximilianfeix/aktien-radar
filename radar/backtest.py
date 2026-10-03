@@ -27,6 +27,12 @@ class Result:
     survivorship_bias: bool = False
 
 
+def month_ends(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
+    """Last session of every completed month. The final month may still be running, so it is left out."""
+    last = index.to_series().groupby([index.year, index.month]).tail(1).index
+    return last[:-1]
+
+
 def portfolio_returns(close: pd.DataFrame, weights: pd.DataFrame, cost: float, monthly: bool = False) -> pd.Series:
     """Daily strategy returns after costs. `cost` is charged per unit of turnover (0.001 = 0.1 %).
 
@@ -39,7 +45,7 @@ def portfolio_returns(close: pd.DataFrame, weights: pd.DataFrame, cost: float, m
     if monthly:
         index = weights.index
         rebalance = np.zeros(len(index), dtype=bool)
-        rebalance[index.get_indexer(weights.groupby([index.year, index.month]).tail(1).index)] = True
+        rebalance[index.get_indexer(month_ends(index))] = True
     else:
         rebalance = np.r_[targets[0].any(), (np.diff(targets, axis=0) != 0).any(axis=1)]
 
@@ -57,8 +63,7 @@ def portfolio_returns(close: pd.DataFrame, weights: pd.DataFrame, cost: float, m
 
 def monthly_hold(weights: pd.DataFrame) -> pd.DataFrame:
     """Keep only month-end decisions and hold them until the next month end."""
-    month_end = weights.groupby([weights.index.year, weights.index.month]).tail(1).index
-    return weights.loc[month_end].reindex(weights.index).ffill().fillna(0.0)
+    return weights.loc[month_ends(weights.index)].reindex(weights.index).ffill().fillna(0.0)
 
 
 def buy_and_hold(close: pd.Series) -> pd.DataFrame:
@@ -114,7 +119,7 @@ def stats(returns: pd.Series, periods_per_year: int) -> dict:
     years = len(returns) / periods_per_year
     cagr = float(equity.iloc[-1] ** (1 / years) - 1)
     vol = float(returns.std() * np.sqrt(periods_per_year))
-    mdd = ind.max_drawdown(equity)
+    mdd = ind.max_drawdown(pd.concat([pd.Series([1.0]), equity]))  # the starting capital is the first peak
     return {
         "cagr": cagr,
         "vol": vol,

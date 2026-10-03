@@ -37,7 +37,8 @@ def run(data_dir: Path, out_dir: Path, with_fundamentals: bool = True) -> dict:
         tickers = list(universe[market]["tickers"])
         cleaned, gone = clean_market(prices.subset(tickers), now=today)
         dropped += gone + [t for t in tickers if t not in prices.close.columns]
-        closes[market] = cleaned.close
+        # Signals use the latest price; backtests only count finished sessions, so today's bar is left out.
+        closes[market] = cleaned.close.loc[cleaned.close.index < today]
         if cleaned.close.empty:  # Yahoo returned nothing usable for this market; publish the others
             log.warning("Keine aktuellen Kursdaten für den Markt %s", market)
             continue

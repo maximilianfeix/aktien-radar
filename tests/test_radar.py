@@ -84,7 +84,12 @@ def test_monthly_rebalance_trades_back_to_target_and_pays_for_it():
     free = backtest.portfolio_returns(close, weights, cost=0.0, monthly=True)
     paid = backtest.portfolio_returns(close, weights, cost=0.01, monthly=True)
     month_ends = index.to_series().groupby([index.year, index.month]).max()
-    assert set(index[(free - paid) > 1e-12]) == set(month_ends)
+    assert set(index[(free - paid) > 1e-12]) == set(month_ends[:-1])  # March may still be running
+
+
+def test_drawdown_counts_a_loss_on_the_first_day():
+    returns = pd.Series([-0.5] + [0.0] * 251, index=days(252))
+    assert backtest.stats(returns, 252)["max_drawdown"] == pytest.approx(-0.5)
 
 
 def test_empty_model_variable_falls_back_to_the_default(monkeypatch):
