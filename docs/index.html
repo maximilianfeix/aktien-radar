@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aktien-Radar</title>
+<meta name="description" content="Stündlich aktualisierte, regelbasierte Signale für Aktien, ETFs und Krypto – mit Begründung und Backtests.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a78d6'/%3E%3Cpath d='M6 22l7-8 5 4 8-10' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10); --wash: rgba(11,11,11,.04);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --accent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --wash: rgba(255,255,255,.05);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    --accent: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --wash: rgba(255,255,255,.05);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  --accent: #3987e5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 0 16px 64px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
+h2 { font-size: 18px; margin: 40px 0 4px; letter-spacing: -.01em; }
+h3 { font-size: 15px; margin: 0 0 8px; }
+p { margin: 0 0 12px; }
+.sub { color: var(--ink-2); margin: 0 0 16px; max-width: 72ch; }
+.small { font-size: 13px; color: var(--ink-2); }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 20px 0 16px; }
+header .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+header svg { flex: none; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.g4 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.notice { border-left: 3px solid var(--warning); padding: 10px 14px; font-size: 13px; color: var(--ink-2); background: var(--surface); border-radius: 0 8px 8px 0; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); margin-bottom: 6px; }
+.hero-name { font-size: 24px; font-weight: 650; letter-spacing: -.02em; line-height: 1.2; }
+.kv { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 12px 0; }
+.kv div { min-width: 70px; }
+.kv dt { font-size: 12px; color: var(--ink-2); }
+.kv dd { margin: 0; font-weight: 600; }
+dl { margin: 0; }
+ul.why { margin: 0; padding: 0; list-style: none; }
+ul.why li { padding-left: 20px; position: relative; margin-bottom: 4px; }
+ul.why li::before { position: absolute; left: 0; font-weight: 700; }
+ul.why li.pro::before { content: "+"; color: var(--good); }
+ul.why li.con::before { content: "!"; color: var(--critical); }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 2px 9px 2px 7px; border: 1px solid var(--border); border-radius: 999px; white-space: nowrap; }
+.badge i { width: 0; height: 0; flex: none; font-style: normal; }
+.badge.buy i { border: 5px solid transparent; border-bottom: 8px solid var(--good); border-top: 0; }
+.badge.avoid i { border: 5px solid transparent; border-top: 8px solid var(--critical); border-bottom: 0; }
+.badge.hold i { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.badge.watch i { width: 9px; height: 9px; background: var(--warning); transform: rotate(45deg); }
+.tile .v { font-size: 20px; font-weight: 650; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; background: var(--wash); border-radius: 10px; }
+.seg button { border: 0; background: none; padding: 5px 12px; border-radius: 7px; cursor: pointer; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--border); font-weight: 600; }
+.seg button:focus-visible, input:focus-visible, th button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+input[type=search] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-width: 180px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; font-variant-numeric: tabular-nums; }
+th { font-size: 12px; font-weight: 600; color: var(--ink-2); position: sticky; top: 0; background: var(--surface); }
+th button { border: 0; background: none; cursor: pointer; padding: 0; font-weight: 600; color: var(--ink-2); }
+th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 160px; }
+td.l, th.l { text-align: left; }
+tbody tr.row { cursor: pointer; }
+tbody tr.row:hover { background: var(--wash); }
+tr.detail td { white-space: normal; text-align: left; background: var(--wash); }
+.tk { color: var(--ink-2); font-size: 12px; }
+.bar { display: inline-block; width: 44px; height: 6px; border-radius: 3px; background: var(--grid); vertical-align: middle; margin-left: 8px; overflow: hidden; }
+.bar b { display: block; height: 100%; background: var(--s1); border-radius: 3px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); margin: 10px 0 4px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.14); min-width: 190px; display: none; z-index: 2; }
+.tip .d { color: var(--ink-2); margin-bottom: 4px; }
+.tip .r { display: flex; gap: 8px; align-items: center; }
+.tip .r i { width: 10px; height: 3px; border-radius: 2px; flex: none; }
+.tip .r b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.tag { font-size: 11px; border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; color: var(--ink-2); margin-left: 6px; white-space: nowrap; }
+.steps { padding-left: 20px; margin: 0; }
+.steps li { margin-bottom: 8px; }
+footer { margin-top: 48px; font-size: 13px; color: var(--ink-2); }
+#error { display: none; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand">
+    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--s1)"/><path d="M6 22l7-8 5 4 8-10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h1>Aktien-Radar</h1>
+  </div>
+  <span id="regime"></span>
+  <span class="small" id="stamp">Lade Daten …</span>
+</header>
+
+<div class="notice" id="disclaimer">Keine Anlageberatung. Regelbasierte Signale aus Kursdaten – vergangene Renditen sind keine Garantie für die Zukunft.</div>
+<div class="notice" id="error"></div>
+
+<div id="app" hidden>
+  <h2>Was sich jetzt lohnt</h2>
+  <p class="sub" id="regime-text"></p>
+  <div class="grid g2" id="hero"></div>
+  <div class="card" id="ai" hidden style="margin-top:12px"></div>
+
+  <h2>Marktlage</h2>
+  <p class="sub">Liegt ein Index über seinem Durchschnitt der letzten 200 Handelstage, gilt der Trend als intakt.</p>
+  <div class="grid g4" id="indices"></div>
+
+  <h2>Top-Kandidaten je Markt</h2>
+  <p class="sub">Die jeweils drei stärksten Kaufsignale. Scores sind Ränge innerhalb des eigenen Marktes (0–100).</p>
+  <div class="filters"><div class="seg" id="market-tabs" role="group" aria-label="Markt"></div></div>
+  <div class="grid g2" id="market-picks"></div>
+
+  <h2>Alle Werte</h2>
+  <p class="sub">Zeile anklicken für Begründung und Risiken. Spaltenkopf anklicken zum Sortieren.</p>
+  <div class="filters">
+    <div class="seg" id="f-market" role="group" aria-label="Markt"></div>
+    <div class="seg" id="f-signal" role="group" aria-label="Signal"></div>
+    <input type="search" id="f-search" placeholder="Name oder Ticker" aria-label="Suche">
+  </div>
+  <div class="card scroll" style="padding:0"><table id="assets"><thead></thead><tbody></tbody></table></div>
+  <p class="small" id="dropped" style="margin-top:8px"></p>
+
+  <h2>Backtests: Was hat funktioniert?</h2>
+  <p class="sub">Entwicklung von 1 € nach Handelskosten (0,1 % je Umschichtung, Krypto 0,2 %), logarithmische Skala. Die Regeln stammen aus der Literatur und wurden nicht auf diese Daten optimiert.</p>
+  <div class="card">
+    <div class="filters" style="margin-bottom:4px"><div class="seg" id="bt-group" role="group" aria-label="Strategiegruppe"></div></div>
+    <div class="legend" id="bt-legend"></div>
+    <div class="chart" id="bt-chart"><div class="tip"></div></div>
+  </div>
+  <div class="card scroll" style="padding:0;margin-top:12px"><table id="bt-table"><thead></thead><tbody></tbody></table></div>
+  <p class="small" style="margin-top:8px" id="bt-note"></p>
+
+  <h2>Verlauf der Top-Kandidaten</h2>
+  <p class="sub">Die letzten stündlichen Läufe.</p>
+  <div class="card scroll" style="padding:0"><table id="history"><thead></thead><tbody></tbody></table></div>
+
+  <h2>So entstehen die Signale</h2>
+  <div class="card">
+    <ol class="steps">
+      <li><b>Langfrist-Score</b> (Monate bis Jahre): 12-1-Momentum 35 %, 6-Monats-Momentum 15 %, Trend über der 200-Tage-Linie 20 %, niedrige Schwankung 15 %, Nähe zum 52-Wochen-Hoch 15 %. Bei Einzelaktien fließen zu 20 % Qualität und Bewertung ein (Eigenkapitalrendite, Marge, Wachstum, KGV, Verschuldung).</li>
+      <li><b>Kurzfrist-Score</b> (Tage bis Wochen): 1-Monats-Momentum 30 %, Nähe zum 52-Wochen-Hoch 25 %, Trend 25 %, Rücksetzer im Aufwärtstrend 20 %.</li>
+      <li><b>Kaufen</b> gibt es nur über der 200-Tage-Linie und mit positivem 6- und 12-Monats-Momentum. Überkaufte Werte (RSI über 75) werden kurzfristig nur beobachtet. Im Risk-off-Modus sind kurzfristige Aktienkäufe ausgesetzt.</li>
+      <li><b>Stop</b>: 2,5 durchschnittliche Tagesspannen (ATR) unter dem Kurs. Faustregel: pro Position höchstens 1 % des Depots riskieren.</li>
+    </ol>
+  </div>
+  <footer>
+    <p>Datenquelle: Yahoo Finance (Tageskurse, verzögert). Signale nutzen den letzten verfügbaren Kurs, Backtests nur abgeschlossene Handelstage. Kurse in Handelswährung. Code und Methodik: <a href="https://github.com/maximilianfeix/aktien-radar">github.com/maximilianfeix/aktien-radar</a></p>
+  </footer>
+</div>
+</main>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const nf = (d = 2) => new Intl.NumberFormat("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+const price = x => x == null ? "–" : nf(x >= 1000 ? 0 : 2).format(x);
+const pct = (x, d = 1) => x == null ? "–" : (x > 0 ? "+" : "") + nf(d).format(x * 100) + " %";
+const num = (x, d = 2) => x == null ? "–" : nf(d).format(x);
+const SIGNAL_CLASS = { Kaufen: "buy", Halten: "hold", Beobachten: "watch", Meiden: "avoid" };
+const badge = s => `<span class="badge ${SIGNAL_CLASS[s]}"><i></i>${esc(s)}</span>`;
+const SERIES = ["--s1", "--s2", "--s3", "--s4", "--s5"];
+const state = { market: "us", fMarket: "all", fSignal: "all", search: "", sort: "long_score", dir: -1, open: null, group: 0 };
+let DATA, BY;
+
+function seg(el, options, current, onPick) {
+  el.innerHTML = options.map(([v, l]) => `<button type="button" data-v="${esc(v)}" aria-pressed="${v == current}">${esc(l)}</button>`).join("");
+  el.onclick = e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    el.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    onPick(b.dataset.v);
+  };
+}
+
+function reasons(a, max = 9) {
+  const pro = a.reasons.slice(0, max).map(r => `<li class="pro">${esc(r)}</li>`);
+  const con = a.risks.slice(0, max).map(r => `<li class="con">${esc(r)}</li>`);
+  return `<ul class="why">${pro.join("")}${con.join("")}</ul>`;
+}
+
+function pickCard(a, horizon, title) {
+  if (!a) return `<div class="card"><div class="eyebrow">${title}</div><div class="hero-name">Kein Kaufsignal</div><p class="sub" style="margin-top:8px">Kein Wert erfüllt aktuell alle Bedingungen. Cash ist auch eine Position.</p></div>`;
+  return `<div class="card"><div class="eyebrow">${title}</div>
+    <div class="hero-name">${esc(a.name)}</div>
+    <div class="small">${esc(a.ticker)} · ${esc(DATA.markets[a.market])}</div>
+    <dl class="kv">
+      <div><dt>Kurs</dt><dd>${price(a.price)}</dd></div>
+      <div><dt>Score</dt><dd>${num(a[horizon + "_score"], 0)} / 100</dd></div>
+      <div><dt>1 Monat</dt><dd>${pct(a.mom_1m)}</dd></div>
+      <div><dt>12-1 Monate</dt><dd>${pct(a.mom_12_1)}</dd></div>
+      <div><dt>Stop</dt><dd>${price(a.stop)}</dd></div>
+    </dl>${reasons(a, 4)}</div>`;
+}
+
+function renderTop() {
+  const r = DATA.regime;
+  const cls = { risk_on: "buy", neutral: "watch", risk_off: "avoid" }[r.state];
+  $("#regime").innerHTML = `<span class="badge ${cls}"><i></i>Marktlage: ${esc(r.label)}</span>`;
+  $("#regime-text").textContent = r.text;
+  $("#stamp").textContent = "Stand: " + new Date(DATA.generated_at).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) + " Uhr";
+  $("#disclaimer").textContent = DATA.disclaimer;
+  const o = DATA.picks.overall;
+  $("#hero").innerHTML = pickCard(BY[o.short[0]], "short", "Kurzfristig · Tage bis Wochen") + pickCard(BY[o.long[0]], "long", "Langfristig · Monate bis Jahre");
+  if (DATA.ai) {
+    $("#ai").hidden = false;
+    $("#ai").innerHTML = `<div class="eyebrow">Einordnung von Claude</div>` + DATA.ai.text.split(/\n\s*\n/).map(p => `<p>${esc(p)}</p>`).join("");
+  }
+  const tiles = Object.values(r.indices).map(i => `<div class="card tile"><div class="small">${esc(i.name)}</div><div class="v">${price(i.price)}</div>
+    <div class="small">${pct(i.vs_sma200)} zur 200-Tage-Linie</div><div style="margin-top:8px">${badge(i.uptrend ? "Kaufen" : "Meiden").replace(/Kaufen|Meiden/, i.uptrend ? "Aufwärtstrend" : "Abwärtstrend")}</div></div>`);
+  if (r.vix != null) tiles.push(`<div class="card tile"><div class="small">VIX (Nervosität)</div><div class="v">${num(r.vix, 1)}</div><div class="small">unter 20 ruhig, über 28 Stress</div></div>`);
+  $("#indices").innerHTML = tiles.join("");
+}
+
+function renderMarketPicks() {
+  const p = DATA.picks[state.market];
+  const list = (tickers, h) => tickers.length ? tickers.map(t => {
+    const a = BY[t];
+    return `<div style="padding:10px 0;border-top:1px solid var(--grid)"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b>${esc(a.name)}</b><span class="tk">${esc(a.ticker)}</span>
+      <span style="margin-left:auto" class="small">Score ${num(a[h + "_score"], 0)} · Kurs ${price(a.price)} · Stop ${price(a.stop)}</span></div>${reasons(a, 2)}</div>`;
+  }).join("") : `<p class="small" style="margin:8px 0 0">Aktuell kein Kaufsignal in diesem Markt.</p>`;
+  $("#market-picks").innerHTML = `<div class="card"><h3>Kurzfristig</h3>${list(p.short, "short")}</div><div class="card"><h3>Langfristig</h3>${list(p.long, "long")}</div>`;
+}
+
+const COLS = [["name", "Wert"], ["price", "Kurs"], ["chg_1d", "1 T"], ["mom_1m", "1 M"], ["mom_12_1", "12-1 M"], ["vs_sma200", "zur 200-T-Linie"],
+  ["vol", "Schwankung"], ["rsi14", "RSI"], ["short_score", "Kurzfrist"], ["long_score", "Langfrist"]];
+
+function renderAssets() {
+  const q = state.search.toLowerCase();
+  const rows = DATA.assets.filter(a => (state.fMarket === "all" || a.market === state.fMarket)
+    && (state.fSignal === "all" || a.long_signal === state.fSignal || a.short_signal === state.fSignal)
+    && (!q || a.name.toLowerCase().includes(q) || a.ticker.toLowerCase().includes(q)));
+  rows.sort((a, b) => {
+    const x = a[state.sort], y = b[state.sort];
+    if (x == null) return 1; if (y == null) return -1;
+    return (typeof x === "string" ? x.localeCompare(y) : x - y) * state.dir;
+  });
+  $("#assets thead").innerHTML = "<tr>" + COLS.map(([k, l]) => `<th><button type="button" data-k="${k}">${l}${state.sort === k ? (state.dir < 0 ? " ↓" : " ↑") : ""}</button></th>`).join("") + "</tr>";
+  const score = (a, h) => `${badge(a[h + "_signal"])} ${num(a[h + "_score"], 0)}<span class="bar"><b style="width:${a[h + "_score"]}%"></b></span>`;
+  $("#assets tbody").innerHTML = rows.map(a => `<tr class="row" data-t="${esc(a.ticker)}" tabindex="0">
+    <td><b>${esc(a.name)}</b><br><span class="tk">${esc(a.ticker)} · ${esc(DATA.markets[a.market])}</span></td>
+    <td>${price(a.price)}</td><td>${pct(a.chg_1d)}</td><td>${pct(a.mom_1m)}</td><td>${pct(a.mom_12_1, 0)}</td><td>${pct(a.vs_sma200, 0)}</td>
+    <td>${a.vol == null ? "–" : num(a.vol * 100, 0) + " %"}</td><td>${num(a.rsi14, 0)}</td><td>${score(a, "short")}</td><td>${score(a, "long")}</td></tr>`
+    + (state.open === a.ticker ? `<tr class="detail"><td colspan="${COLS.length}">${reasons(a)}<p class="small" style="margin:8px 0 0">Stop-Vorschlag ${price(a.stop)} · durchschnittliche Tagesspanne ${pct(a.atr_pct).replace("+", "")}</p></td></tr>` : "")).join("")
+    || `<tr><td colspan="${COLS.length}" class="l">Kein Wert passt zu diesem Filter.</td></tr>`;
+}
+
+const GROUPS = [
+  ["ETF-Strategien", ["bh_spy", "etf_rotation", "dual_momentum", "trend_spy", "rsi2_spy"]],
+  ["Einzelaktien", ["bh_spy", "stock_momentum_us", "stock_momentum_eu"]],
+  ["Krypto", ["bh_btc", "trend_btc", "crypto_momentum"]],
+];
+
+function groupSeries() {
+  const list = GROUPS[state.group][1].map(k => DATA.backtests.find(b => b.key === k)).filter(Boolean);
+  const start = list.map(b => b.curve.dates[0]).sort().pop();
+  return list.map((b, i) => {
+    const from = b.curve.dates.findIndex(d => d >= start), base = b.curve.equity[from];
+    return { name: b.name, color: `var(${SERIES[i]})`, pts: b.curve.dates.slice(from).map((d, j) => [Date.parse(d), b.curve.equity[from + j] / base]) };
+  });
+}
+
+function renderChart() {
+  const box = $("#bt-chart"), tip = $(".tip", box), series = groupSeries();
+  box.querySelector("svg, p")?.remove();
+  if (!series.length) {
+    $("#bt-legend").innerHTML = "";
+    box.insertAdjacentHTML("afterbegin", `<p class="small" style="padding:24px 0;margin:0">Für diese Gruppe liegen gerade keine Kursdaten vor.</p>`);
+    box.onmousemove = box.ontouchmove = box.ontouchstart = null;
+    return;
+  }
+  $("#bt-legend").innerHTML = series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join("");
+  const W = box.clientWidth, H = 340, direct = series.length <= 4 && W > 560;
+  const m = { t: 12, r: direct ? 150 : 16, b: 28, l: 44 };
+  const xs = series.flatMap(s => s.pts.map(p => p[0])), ys = series.flatMap(s => s.pts.map(p => p[1]));
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), l0 = Math.log(Math.min(...ys) * .95), l1 = Math.log(Math.max(...ys) * 1.05);
+  const X = t => m.l + (t - x0) / (x1 - x0) * (W - m.l - m.r), Y = v => m.t + (l1 - Math.log(v)) / (l1 - l0) * (H - m.t - m.b);
+  const ticks = [];
+  for (let v = 0.125; v < 4096; v *= 2) if (Math.log(v) > l0 && Math.log(v) < l1) ticks.push(v);
+  const years = [];
+  for (let y = new Date(x0).getFullYear() + 1; Date.UTC(y, 0, 1) <= x1; y++) years.push(y);
+  const step = Math.ceil(years.length / Math.max(2, Math.floor((W - m.l - m.r) / 70)));
+  let svg = ticks.map(v => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(${v === 1 ? "--axis" : "--grid"})"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="12" fill="var(--muted)">${num(v, v < 1 ? 2 : 0)} €</text>`).join("");
+  svg += years.filter((_, i) => i % step === 0).map(y => `<text x="${X(Date.UTC(y, 0, 1))}" y="${H - 8}" text-anchor="middle" font-size="12" fill="var(--muted)">${y}</text>`).join("");
+  svg += series.map(s => `<path d="M${s.pts.map(p => X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join("L")}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`).join("");
+  if (direct) {
+    const ends = series.map(s => ({ s, y: Y(s.pts.at(-1)[1]) })).sort((a, b) => a.y - b.y);
+    ends.forEach((e, i) => { if (i && e.y - ends[i - 1].y < 30) e.y = ends[i - 1].y + 30; });
+    svg += ends.map(e => `<text x="${W - m.r + 8}" y="${e.y}" font-size="12" fill="var(--ink-2)"><tspan font-weight="600" fill="var(--ink)">${num(e.s.pts.at(-1)[1])} €</tspan><tspan x="${W - m.r + 8}" dy="14">${esc(e.s.name.length > 24 ? e.s.name.slice(0, 23) + "…" : e.s.name)}</tspan></text>`).join("");
+  }
+  svg += `<g id="hover" style="display:none"><line y1="${m.t}" y2="${H - m.b}" stroke="var(--axis)"/>${series.map(s => `<circle r="4.5" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join("")}</g>`;
+  box.insertAdjacentHTML("afterbegin", `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Wertentwicklung der Strategien, Werte in der Tabelle darunter">${svg}</svg>`);
+  const hover = $("#hover", box), dots = hover.querySelectorAll("circle"), line = $("line", hover), ref = series[0].pts;
+  const move = e => {
+    const rect = box.getBoundingClientRect(), px = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const t = x0 + (Math.min(Math.max(px, m.l), W - m.r) - m.l) / (W - m.l - m.r) * (x1 - x0);
+    let i = ref.findIndex(p => p[0] >= t); if (i < 0) i = ref.length - 1;
+    const tx = X(ref[i][0]);
+    hover.style.display = ""; line.setAttribute("x1", tx); line.setAttribute("x2", tx);
+    const rows = series.map((s, k) => { const p = s.pts[Math.min(i, s.pts.length - 1)]; dots[k].setAttribute("cx", tx); dots[k].setAttribute("cy", Y(p[1])); return { s, v: p[1] }; });
+    rows.sort((a, b) => b.v - a.v);
+    tip.innerHTML = `<div class="d">${new Date(ref[i][0]).toLocaleDateString("de-DE", { dateStyle: "medium" })}</div>` + rows.map(r => `<div class="r"><i style="background:${r.s.color}"></i>${esc(r.s.name)}<b>${num(r.v)} €</b></div>`).join("");
+    tip.style.display = "block";
+    tip.style.left = Math.max(0, Math.min(tx + 14, W - tip.offsetWidth)) + "px"; tip.style.top = "8px";
+    if (tx + 14 + tip.offsetWidth > W) tip.style.left = Math.max(0, tx - 14 - tip.offsetWidth) + "px";
+  };
+  const leave = () => { hover.style.display = "none"; tip.style.display = "none"; };
+  box.onmousemove = move; box.ontouchmove = move; box.ontouchstart = move; box.onmouseleave = leave; box.ontouchend = leave;
+}
+
+function renderBacktestTable() {
+  $("#bt-table thead").innerHTML = `<tr><th>Strategie</th><th>Rendite p. a.<br>gesamt</th><th>Rendite p. a.<br>bis 2020</th><th>Rendite p. a.<br>seit 2021</th><th>Sharpe<br>seit 2021</th><th>Größter Rückgang<br>gesamt</th><th>Rendite je Rückgang<br>seit 2021</th></tr>`;
+  $("#bt-table tbody").innerHTML = DATA.backtests.map(b => {
+    const f = b.full || {}, i = b.in_sample || {}, o = b.out_of_sample || {};
+    const tags = (b.key === DATA.core_strategy ? `<span class="tag">Kernstrategie</span>` : "") + (b.survivorship_bias ? `<span class="tag">geschönt*</span>` : "");
+    return `<tr><td><b>${esc(b.name)}</b>${tags}<br><span class="tk">${esc(b.description)}</span></td><td>${pct(f.cagr)}</td><td>${pct(i.cagr)}</td><td>${pct(o.cagr)}</td><td>${num(o.sharpe)}</td><td>${pct(f.max_drawdown, 0)}</td><td>${num(o.calmar)}</td></tr>`;
+  }).join("");
+  const core = DATA.backtests.find(b => b.key === DATA.core_strategy);
+  $("#bt-note").innerHTML = (core ? `<b>Kernstrategie:</b> ${esc(core.name)} hatte seit 2021 das beste Verhältnis aus Rendite und größtem Rückgang unter den unverzerrten Tests. ` : "")
+    + `„Seit 2021“ ist der Zeitraum, den die Regeln nie gesehen haben, und damit der ehrlichste Maßstab. *Geschönt: Diese Tests nutzen die heutige Auswahl an Aktien und Coins, also die Gewinner von heute (Survivorship Bias). Die echte Rendite wäre niedriger gewesen.`;
+}
+
+async function renderHistory() {
+  let hist = [];
+  try { hist = await (await fetch("data/history.json?t=" + Date.now())).json(); } catch { /* optional */ }
+  const cell = h => h ? `<b>${esc(h.name)}</b> <span class="tk">${esc(h.ticker)} · ${price(h.price)} · Score ${num(h.score, 0)}</span>` : "kein Signal";
+  $("#history thead").innerHTML = `<tr><th>Zeit</th><th class="l">Kurzfristig</th><th class="l">Langfristig</th><th class="l">Marktlage</th></tr>`;
+  $("#history tbody").innerHTML = hist.slice(-24).reverse().map(h => `<tr><td>${new Date(h.at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}</td><td class="l">${cell(h.short)}</td><td class="l">${cell(h.long)}</td><td class="l">${esc({ risk_on: "Risk-on", risk_off: "Risk-off", neutral: "Neutral" }[h.regime] || h.regime)}</td></tr>`).join("");
+}
+
+async function init() {
+  try {
+    const res = await fetch("data/latest.json?t=" + Date.now());
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    DATA = await res.json();
+  } catch (e) {
+    $("#error").style.display = "block";
+    $("#error").textContent = "Die Daten konnten nicht geladen werden (" + e.message + "). Bitte später erneut versuchen.";
+    $("#stamp").textContent = "";
+    return;
+  }
+  BY = Object.fromEntries(DATA.assets.map(a => [a.ticker, a]));
+  $("#app").hidden = false;
+  const markets = Object.entries(DATA.markets);
+  renderTop();
+  seg($("#market-tabs"), markets, state.market, v => { state.market = v; renderMarketPicks(); });
+  renderMarketPicks();
+  seg($("#f-market"), [["all", "Alle Märkte"], ...markets], "all", v => { state.fMarket = v; renderAssets(); });
+  seg($("#f-signal"), [["all", "Alle Signale"], ["Kaufen", "Kaufen"], ["Halten", "Halten"], ["Beobachten", "Beobachten"], ["Meiden", "Meiden"]], "all", v => { state.fSignal = v; renderAssets(); });
+  $("#f-search").oninput = e => { state.search = e.target.value; renderAssets(); };
+  $("#assets thead").onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    state.dir = state.sort === b.dataset.k ? -state.dir : (b.dataset.k === "name" ? 1 : -1); state.sort = b.dataset.k; renderAssets();
+  };
+  const toggle = e => { const r = e.target.closest("tr.row"); if (r) { state.open = state.open === r.dataset.t ? null : r.dataset.t; renderAssets(); } };
+  $("#assets tbody").onclick = toggle;
+  $("#assets tbody").onkeydown = e => { if (e.key === "Enter") toggle(e); };
+  renderAssets();
+  if (DATA.dropped.length) $("#dropped").textContent = "Ohne aktuelle Kursdaten und deshalb nicht bewertet: " + DATA.dropped.join(", ");
+  seg($("#bt-group"), GROUPS.map((g, i) => [i, g[0]]), 0, v => { state.group = +v; renderChart(); });
+  renderChart(); renderBacktestTable(); renderHistory();
+  new ResizeObserver(() => renderChart()).observe($("#bt-chart"));
+}
+init();
+</script>
+</body>
+</html>

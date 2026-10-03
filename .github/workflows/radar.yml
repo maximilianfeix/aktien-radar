@@ -1,0 +1,88 @@
+name: Radar-Update
+
+on:
+  schedule:
+    - cron: "7 * * * *" # jede Stunde; GitHub startet geplante Läufe oft einige Minuten verspätet
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: radar-update
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Signale und Backtests berechnen
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # optional: ohne Key entfällt der KI-Kommentar
+          RADAR_MODEL: ${{ vars.RADAR_MODEL }}
+        run: python -m radar run
+
+      - name: Pull Request erstellen und mergen
+        run: |
+          stamp=$(date -u +%Y-%m-%d-%H%M)
+          branch="radar/update-$stamp"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add docs/data
+          git commit -m "Radar-Update $stamp: $(cat out/summary.txt)"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --label radar-update \
+            --title "Radar-Update $stamp: $(cat out/summary.txt)" --body-file out/report.md
+          for attempt in 1 2 3 4 5; do # GitHub braucht einen Moment, bis ein neuer PR mergebar ist
+            gh pr merge "$branch" --squash --delete-branch && exit 0
+            sleep 10
+          done
+          exit 1
+
+      - name: Tagesbericht-Issue pflegen
+        run: |
+          title="Aktien-Radar $(date -u +%F)"
+          number=""
+          while IFS=$'\t' read -r num issue_title; do
+            if [ "$issue_title" = "$title" ]; then
+              number="$num"
+            else
+              gh issue close "$num" --comment "Abgelöst durch den Tagesbericht vom $(date -u +%F)."
+            fi
+          done < <(gh issue list --label tagesbericht --state open --limit 50 --json number,title --jq '.[] | [.number, .title] | @tsv')
+          if [ -z "$number" ]; then
+            gh issue create --title "$title" --label tagesbericht --body-file out/report.md
+          else
+            gh issue edit "$number" --body-file out/report.md
+            if [ "$(cat out/picks_changed)" = "true" ]; then
+              gh issue comment "$number" --body "Die Top-Kandidaten haben sich geändert: $(cat out/summary.txt). Details stehen oben im Bericht."
+            fi
+          fi
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs
+
+      - id: deploy
+        uses: actions/deploy-pages@v5
