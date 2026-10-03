@@ -25,6 +25,7 @@ class Result:
     returns: pd.Series
     periods_per_year: int
     survivorship_bias: bool = False
+    allocation: dict | None = None
 
 
 def month_ends(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
@@ -140,6 +141,7 @@ def summarize(result: Result) -> dict:
         "name": result.name,
         "description": result.description,
         "survivorship_bias": result.survivorship_bias,
+        "allocation": result.allocation,
         "full": stats(live, result.periods_per_year),
         "in_sample": stats(live.loc[: pd.Timestamp(OOS_START) - pd.Timedelta(days=1)], result.periods_per_year),
         "out_of_sample": stats(live.loc[OOS_START:], result.periods_per_year),
@@ -156,7 +158,9 @@ def run_all(closes: dict[str, pd.DataFrame], cost: float = 0.001, crypto_cost: f
     def add(key, name, description, close, weights, cost_, ppy=252, biased=False, monthly=True):
         close = close.to_frame() if isinstance(close, pd.Series) else close
         returns = portfolio_returns(close, weights, cost_, monthly)
-        results.append(Result(key, name, description, returns, ppy, biased))
+        last = weights.iloc[-1]
+        allocation = {t: round(float(w), 3) for t, w in last[last > 0.005].sort_values(ascending=False).items()}
+        results.append(Result(key, name, description, returns, ppy, biased, allocation))
 
     if "SPY" in etf:
         spy = etf["SPY"].dropna()

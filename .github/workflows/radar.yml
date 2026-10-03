@@ -40,6 +40,11 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # optional: ohne Key entfällt der KI-Kommentar
           RADAR_MODEL: ${{ vars.RADAR_MODEL }}
+          # optional: Push-Nachricht, wenn sich die Top-Kandidaten ändern
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python -m radar run
 
       - name: Pull Request erstellen und mergen
@@ -49,7 +54,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
-          git add docs/data
+          git add docs/data docs/feed.xml
           git commit -m "Radar-Update $stamp: $(cat out/summary.txt)"
           git push origin "$branch"
           gh pr create --base main --head "$branch" --label radar-update \

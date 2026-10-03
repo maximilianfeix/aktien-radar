@@ -18,6 +18,7 @@ LONG_WEIGHTS = {"mom_12_1": 0.35, "mom_6m": 0.15, "trend": 0.20, "low_vol": 0.15
 SHORT_WEIGHTS = {"mom_1m": 0.30, "near_high": 0.25, "pullback": 0.20, "trend": 0.25}
 QUALITY_BLEND = 0.20  # share of the long score taken by fundamentals when available
 STOP_ATR_MULTIPLE = 2.5
+TARGET_R_MULTIPLE = 2  # price target = twice the distance to the stop
 
 
 def compute_metrics(prices: Prices, periods_per_year: int) -> pd.DataFrame:
@@ -42,7 +43,16 @@ def compute_metrics(prices: Prices, periods_per_year: int) -> pd.DataFrame:
         "rsi2": ind.rsi(close, 2).iloc[-1],
         "atr_pct": atr / last,
         "stop": last - STOP_ATR_MULTIPLE * atr,
+        "target": last + TARGET_R_MULTIPLE * STOP_ATR_MULTIPLE * atr,
+        "spark": pd.Series({t: _spark(close[t], year) for t in close.columns}),
     })
+
+
+def _spark(series: pd.Series, year: int, points: int = 32) -> list[float]:
+    """The last year of prices thinned to a few points, for the small trend line in the table."""
+    recent = series.dropna().iloc[-year:]
+    step = max(1, len(recent) // points)
+    return [float(f"{v:.4g}") for v in recent.iloc[::-1].iloc[::step].iloc[::-1]]
 
 
 def _pullback(m: pd.DataFrame) -> pd.Series:
