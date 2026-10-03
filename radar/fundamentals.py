@@ -28,7 +28,9 @@ WORKERS = 8
 def load(cache_file: Path, tickers: list[str], refresh: bool = True) -> dict[str, dict]:
     cache = json.loads(cache_file.read_text(encoding="utf-8")) if cache_file.exists() else {}
     age_hours = (time.time() - cache.get("fetched_at", 0)) / 3600
-    outdated = age_hours > MAX_AGE_HOURS or not cache.get("data") or cache.get("version") != CACHE_VERSION
+    missing = len(set(tickers) - set(cache.get("data", {})))  # e.g. after the universe grew
+    outdated = (age_hours > MAX_AGE_HOURS or not cache.get("data") or cache.get("version") != CACHE_VERSION
+                or (missing > len(tickers) * 0.15 and age_hours > 1))
     if refresh and outdated:
         fetched = _fetch(tickers)
         if len(fetched) >= len(tickers) // 2:  # keep the old cache when Yahoo throttled us

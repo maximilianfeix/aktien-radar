@@ -3,26 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aktien-Radar</title>
-<meta name="description" content="Stündlich aktualisierte, regelbasierte Signale für Aktien, ETFs und Krypto – mit Begründung, Kurszielen und Backtests.">
-<meta name="theme-color" content="#0b0b0c">
+<title>Aktien-Radar – was sich jetzt lohnt</title>
+<meta name="description" content="Jede Stunde neu: regelbasierte Kauf- und Verkaufssignale für Aktien, ETFs und Krypto. Mit Begründung, Stop, Kursziel, Backtests und ehrlicher Live-Bilanz.">
+<meta property="og:title" content="Aktien-Radar – was sich jetzt lohnt">
+<meta property="og:description" content="Stündliche Signale für 240 Aktien, ETFs und Coins. Mit Begründung, Stop, Kursziel und Backtests.">
+<meta property="og:image" content="https://maximilianfeix.github.io/aktien-radar/screenshot.jpg">
+<meta name="theme-color" content="#121113">
+<link rel="canonical" href="https://maximilianfeix.github.io/aktien-radar/">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="alternate" type="application/atom+xml" title="Signalwechsel" href="feed.xml">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preload" href="data/latest.json" as="fetch" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
 <script src="app.js" defer></script>
 </head>
 <body>
-<div class="top">
-  <div class="top-in">
+<a class="skip" href="#picks">Zu den Top-Kandidaten</a>
+<div class="top" id="nav">
+  <div class="wrap top-in">
     <a class="brand" href="#top">
-      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--s1)"/><path d="M6 22l7-8 5 4 8-10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <h1>Aktien-Radar</h1>
+      <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="#D4F77A"/><path d="M12 44l14-15 10 8 16-19" fill="none" stroke="#121113" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="52" cy="18" r="4.6" fill="#121113"/></svg>
+      Aktien-Radar
     </a>
     <nav aria-label="Abschnitte">
-      <a href="#ueberblick">Überblick</a><a href="#heatmap">Heatmap</a><a href="#werte">Alle Werte</a><a href="#depot">Mein Depot</a><a href="#backtests">Backtests</a><a href="#methode">Methode</a>
+      <a href="#markt">Markt</a><a href="#heatmap">Heatmap</a><a href="#werte">Screener</a><a href="#vergleich">Vergleich</a><a href="#depot">Depot</a><a href="#backtests">Backtests</a><a href="#methode">Methode</a>
     </nav>
     <div class="search">
       <input type="search" id="q" placeholder="Wert suchen" aria-label="Wert suchen" autocomplete="off">
@@ -32,41 +40,54 @@
     <button class="icon-btn" id="theme" type="button" aria-label="Helles oder dunkles Design umschalten" title="Design umschalten">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
     </button>
+    <a class="btn primary" href="https://github.com/maximilianfeix/aktien-radar">★ Star auf GitHub</a>
   </div>
 </div>
 
 <main id="top">
-  <div class="notice" id="error" hidden></div>
-  <div id="loading" style="margin-top:28px"><div class="skeleton"></div></div>
+  <header class="hero wrap">
+    <div class="status"><span class="pulse"></span><span id="status">Lade den letzten Lauf …</span><span id="regime"></span></div>
+    <h1 class="headline" aria-label="Was sich jetzt lohnt."><span class="line"><span>Was sich</span></span><span class="line"><span>jetzt lohnt.</span></span></h1>
+    <div class="hero-row">
+      <p class="lede">Jede Stunde prüft das Radar <b id="lede-count">über 200</b> Aktien, ETFs und Coins nach festen Regeln und sagt dir, was kurzfristig und langfristig am besten dasteht. Mit Begründung, Stop und Kursziel.</p>
+      <div class="cta"><a class="btn primary big" href="#picks">Top-Kandidaten ansehen</a><a class="btn big" href="#werte">Alle Werte</a></div>
+    </div>
+    <div class="notice" id="error" hidden></div>
+    <div class="grid g2" id="picks"><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div class="tape" id="tape" hidden><div class="tape-in" id="tape-in"></div></div>
+  </header>
 
   <div id="app" hidden>
-    <section class="hero" id="ueberblick">
-      <div class="hero-head">
-        <h2>Was sich jetzt lohnt</h2>
-        <span id="regime"></span>
-        <span class="small stamp" id="stamp"></span>
-      </div>
-      <p class="sub" id="regime-text"></p>
-      <div class="grid g2" id="picks"></div>
-      <div class="card" id="ai" hidden style="margin-top:12px"></div>
-      <div class="grid g3" style="margin-top:12px">
+    <section class="wrap reveal" id="zahlen">
+      <div class="head-row"><h2 class="h2">Der letzte Lauf in Zahlen</h2><p class="intro" id="regime-text"></p></div>
+      <div class="numbers" id="numbers"></div>
+    </section>
+
+    <section class="wrap reveal" id="markt">
+      <div class="head-row"><h2 class="h2">Wie der Markt gerade steht</h2><p class="intro">Erst die Großwetterlage, dann die Einzelwerte. In einem fallenden Markt scheitern auch gute Aktien.</p></div>
+      <div class="grid g3">
+        <div class="card" id="ampel"></div>
         <div class="card" id="core"></div>
         <div class="card" id="breadth"></div>
-        <div class="card" id="track"></div>
       </div>
-      <div class="grid g5" id="indices" style="margin-top:12px"></div>
+      <div class="grid g5" id="indices" style="margin-top:14px"></div>
+      <div class="card" id="ai" hidden style="margin-top:14px"></div>
+      <div class="card" id="news" hidden style="margin-top:14px"></div>
       <div class="notice" id="disclaimer"></div>
     </section>
 
-    <section id="wechsel">
-      <h2>Signalwechsel</h2>
-      <p class="sub">Was seit den letzten Läufen hoch- oder herabgestuft wurde. Als Feed abonnierbar: <a href="feed.xml">feed.xml</a></p>
-      <div class="card" style="padding:8px"><div class="feed" id="changes"></div></div>
+    <section class="wrap reveal" id="bewegung">
+      <div class="head-row"><h2 class="h2">Was sich bewegt</h2><p class="intro">Die größten Tagesbewegungen und jeder Signalwechsel der letzten Läufe. Als Feed abonnierbar: <a href="feed.xml">feed.xml</a></p></div>
+      <div class="grid g3">
+        <div class="card"><h3>Gewinner des Tages</h3><div class="rows" id="gainers"></div></div>
+        <div class="card"><h3>Verlierer des Tages</h3><div class="rows" id="losers"></div></div>
+        <div class="card" id="track"></div>
+      </div>
+      <div class="card" style="padding:10px;margin-top:14px"><div class="feed" id="changes"></div></div>
     </section>
 
-    <section id="heatmap">
-      <h2>Heatmap</h2>
-      <p class="sub">Alle Werte auf einen Blick. Blau ist im Plus, Rot im Minus. Kachel anklicken für Details.</p>
+    <section class="wrap reveal" id="heatmap">
+      <div class="head-row"><h2 class="h2">Alles auf einen Blick</h2><p class="intro">Jede Kachel ist ein Wert. Blau ist im Plus, Rot im Minus. Kachel anklicken für Chart und Handelsplan.</p></div>
       <div class="filters">
         <div class="seg" id="heat-period" role="group" aria-label="Zeitraum"></div>
         <div class="heat-legend push"><span id="heat-min"></span><i></i><span id="heat-max"></span></div>
@@ -74,69 +95,118 @@
       <div id="heat"></div>
     </section>
 
-    <section id="werte">
-      <h2>Alle Werte</h2>
-      <p class="sub">Zeile anklicken für Chart, Kursziel, Stop und Positionsgröße. Stern setzt den Wert auf die Watchlist.</p>
+    <section class="wrap reveal" id="werte">
+      <div class="head-row"><h2 class="h2">Such dir deine Werte</h2><p class="intro">Filtern, sortieren, vormerken. Die Vorlagen finden typische Situationen mit einem Klick. Zeile anklicken für Details.</p></div>
+      <div class="chips" id="presets" style="margin-bottom:12px"></div>
       <div class="filters">
         <div class="seg" id="f-market" role="group" aria-label="Markt"></div>
         <div class="seg" id="f-signal" role="group" aria-label="Signal"></div>
-        <button class="btn" id="f-watch" type="button" aria-pressed="false">☆ Watchlist</button>
+        <button class="chip" id="f-watch" type="button" aria-pressed="false">☆ Watchlist</button>
         <button class="btn push" id="csv" type="button">CSV exportieren</button>
       </div>
       <div class="card scroll" style="padding:0"><table id="assets"><thead></thead><tbody></tbody></table></div>
-      <p class="small" id="count" style="margin-top:8px"></p>
+      <p class="small" id="count" style="margin-top:10px"></p>
     </section>
 
-    <section id="depot">
-      <h2>Mein Depot</h2>
-      <p class="sub">Trag deine Positionen ein und sieh sofort, was das Radar dazu sagt. Die Daten bleiben nur in diesem Browser.</p>
+    <section class="wrap reveal" id="vergleich">
+      <div class="head-row"><h2 class="h2">Direkt verglichen</h2><p class="intro">Bis zu vier Werte übereinander, alle beim Start auf 100 gesetzt. So siehst du sofort, wer im letzten Jahr wirklich stärker war.</p></div>
       <div class="card">
-        <form class="form" id="pos-form">
-          <label>Wert<input id="pos-ticker" list="tickers" placeholder="z. B. SAP.DE" required></label>
-          <label>Stück<input id="pos-qty" type="number" min="0" step="any" required></label>
-          <label>Kaufkurs<input id="pos-price" type="number" min="0" step="any" required></label>
-          <button class="btn primary" type="submit">Hinzufügen</button>
-          <datalist id="tickers"></datalist>
-        </form>
-        <div class="scroll"><table id="positions"><thead></thead><tbody></tbody></table></div>
-        <p class="small" id="pos-sum" style="margin:10px 0 0"></p>
+        <form class="form" id="cmp-form" style="margin-bottom:10px"><label>Wert hinzufügen<input id="cmp-ticker" list="tickers" placeholder="z. B. NVDA"></label><button class="btn" type="submit">Hinzufügen</button></form>
+        <div class="chips" id="cmp-chips"></div>
+        <div class="legend" id="cmp-legend"></div>
+        <div class="chart" id="cmp-chart"><div class="tip"></div></div>
       </div>
     </section>
 
-    <section id="backtests">
-      <h2>Backtests: Was hat funktioniert?</h2>
-      <p class="sub">Entwicklung von 1 € nach Handelskosten (0,1 % je Umschichtung, Krypto 0,2 %), logarithmische Skala. Die Regeln stammen aus der Literatur und wurden nicht auf diese Daten optimiert.</p>
+    <section class="wrap reveal" id="sektoren">
+      <div class="head-row"><h2 class="h2">Sektoren und Termine</h2><p class="intro">Welche Branchen gerade laufen und wo in den nächsten zwei Wochen Quartalszahlen anstehen. Rund um Zahlen springen Kurse in beide Richtungen.</p></div>
+      <div class="grid g2">
+        <div class="card scroll" style="padding:0"><table id="sectors"><thead></thead><tbody></tbody></table></div>
+        <div class="card"><h3>Quartalszahlen in den nächsten 14 Tagen</h3><div class="rows" id="earnings"></div></div>
+      </div>
+    </section>
+
+    <section class="wrap reveal" id="depot">
+      <div class="head-row"><h2 class="h2">Dein Depot im Check</h2><p class="intro">Trag deine Positionen ein und sieh, was das Radar dazu sagt. Die Daten verlassen deinen Browser nicht.</p></div>
+      <div>
+        <div class="card">
+          <form class="form" id="pos-form">
+            <label>Wert<input id="pos-ticker" list="tickers" placeholder="z. B. SAP.DE" required></label>
+            <label>Stück<input id="pos-qty" type="number" min="0" step="any" required></label>
+            <label>Kaufkurs<input id="pos-price" type="number" min="0" step="any" required></label>
+            <button class="btn primary" type="submit">Hinzufügen</button>
+            <datalist id="tickers"></datalist>
+          </form>
+          <div class="scroll"><table id="positions"><thead></thead><tbody></tbody></table></div>
+          <p class="small" id="pos-sum" style="margin:12px 0 0"></p>
+          <div id="xray" style="margin-top:14px"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap reveal" id="signale">
+      <div class="head-row"><h2 class="h2">Die ehrliche Bilanz</h2><p class="intro">Jedes Kaufsignal wird ab dem Moment mitgeschrieben, in dem es erscheint, und beim Ende abgerechnet. Nachträglich schönen lässt sich das nicht.</p></div>
+      <div class="card scroll" style="padding:0"><table id="open-signals"><thead></thead><tbody></tbody></table></div>
+    </section>
+
+    <section class="wrap reveal" id="backtests">
+      <div class="head-row"><h2 class="h2">Was hat funktioniert?</h2><p class="intro">Entwicklung von 1 € nach Handelskosten, logarithmische Skala. Die Regeln stammen aus der Finanzforschung und wurden nicht auf diese Daten optimiert.</p></div>
       <div class="card">
         <div class="filters" style="margin-bottom:4px"><div class="seg" id="bt-group" role="group" aria-label="Strategiegruppe"></div></div>
         <div class="legend" id="bt-legend"></div>
         <div class="chart" id="bt-chart"><div class="tip"></div></div>
       </div>
-      <div class="card scroll" style="padding:0;margin-top:12px"><table id="bt-table"><thead></thead><tbody></tbody></table></div>
-      <p class="small" style="margin-top:8px" id="bt-note"></p>
+      <div class="card scroll" style="padding:0;margin-top:14px"><table id="bt-table"><thead></thead><tbody></tbody></table></div>
+      <p class="small" style="margin-top:10px" id="bt-note"></p>
     </section>
 
-    <section id="verlauf">
-      <h2>Verlauf der Top-Kandidaten</h2>
-      <p class="sub">Die letzten stündlichen Läufe.</p>
+    <section class="wrap reveal" id="verlauf">
+      <div class="head-row"><h2 class="h2">Lauf für Lauf</h2><p class="intro">Die Top-Kandidaten der letzten 24 stündlichen Läufe.</p></div>
       <div class="card scroll" style="padding:0"><table id="history"><thead></thead><tbody></tbody></table></div>
     </section>
 
-    <section id="methode">
-      <h2>So entstehen die Signale</h2>
-      <div class="card">
-        <ol class="steps">
-          <li><b>Langfrist-Score</b> (Monate bis Jahre): 12-1-Momentum 35 %, 6-Monats-Momentum 15 %, Trend über der 200-Tage-Linie 20 %, niedrige Schwankung 15 %, Nähe zum 52-Wochen-Hoch 15 %. Bei Einzelaktien fließen zu 20 % Qualität und Bewertung ein.</li>
-          <li><b>Kurzfrist-Score</b> (Tage bis Wochen): 1-Monats-Momentum 30 %, Nähe zum 52-Wochen-Hoch 25 %, Trend 25 %, Rücksetzer im Aufwärtstrend 20 %.</li>
-          <li><b>Kaufen</b> gibt es nur über der 200-Tage-Linie und mit positivem 6- und 12-Monats-Momentum. Überkaufte Werte (RSI über 75) werden kurzfristig nur beobachtet. Im Risk-off-Modus sind kurzfristige Aktienkäufe ausgesetzt.</li>
-          <li><b>Stop und Ziel</b>: Der Stop liegt 2,5 durchschnittliche Tagesspannen (ATR) unter dem Kurs, das Ziel doppelt so weit darüber. Faustregel: pro Position höchstens 1 % des Depots riskieren.</li>
-          <li><b>Live-Bilanz</b>: Jedes Kaufsignal wird ab dem Moment seines Erscheinens mitgeschrieben und beim Ende abgerechnet. Diese Bilanz lässt sich nachträglich nicht schönen.</li>
-        </ol>
+    <section class="wrap reveal" id="methode">
+      <div class="head-row"><h2 class="h2">Wie ein Signal entsteht</h2><p class="intro">Keine Bauchgefühle, keine Kurstipps aus Foren. Fünf Schritte, jede Stunde gleich.</p></div>
+      <ol class="route" style="margin:0;padding:0">
+        <li><b>Kurse laden</b><span>Tageskurse der letzten zehn Jahre für jeden Wert, dazu Kennzahlen und Quartalstermine.</span></li>
+        <li><b>Trend prüfen</b><span>Nur wer über seiner 200-Tage-Linie liegt und über 6 und 12 Monate im Plus ist, kann ein Kauf werden.</span></li>
+        <li><b>Stärke messen</b><span>Momentum, Nähe zum Hoch, Schwankung und Qualität ergeben einen Score von 0 bis 100 je Zeithorizont.</span></li>
+        <li><b>Risiko setzen</b><span>Stop 2,5 Tagesspannen unter dem Kurs, Ziel doppelt so weit darüber. Überkauftes wird nur beobachtet.</span></li>
+        <li><b>Mitschreiben</b><span>Jedes Signal landet in der Live-Bilanz und wird beim Ende abgerechnet. Die Backtests laufen jede Stunde neu.</span></li>
+      </ol>
+    </section>
+
+    <section class="wrap reveal" id="nutzen">
+      <div class="head-row"><h2 class="h2">Nimm die Daten mit</h2><p class="intro">Alles, was die Seite zeigt, liegt als offene Datei vor. Bau dir dein eigenes Werkzeug darauf.</p></div>
+      <div class="grid g3 use">
+        <div class="card"><b>JSON</b><p>Alle Werte mit Scores, Signalen, Stop und Ziel.</p><pre class="code">curl -s https://maximilianfeix.github.io/aktien-radar/data/latest.json</pre></div>
+        <div class="card"><b>Feed und Push</b><p>Signalwechsel als Atom-Feed, oder als Push aufs Handy über ntfy, Discord und Telegram.</p><pre class="code">https://maximilianfeix.github.io/aktien-radar/feed.xml</pre></div>
+        <div class="card"><b>Selbst betreiben</b><p>Repo forken, eigene Werte in <span class="mono">universe.json</span> eintragen, fertig. Läuft kostenlos auf GitHub Actions.</p><pre class="code">python -m radar run</pre></div>
       </div>
-      <footer>
-        <p>Datenquelle: Yahoo Finance (Tageskurse, verzögert). Signale nutzen den letzten verfügbaren Kurs, Backtests nur abgeschlossene Handelstage. Kurse in Handelswährung. Code und Methodik: <a href="https://github.com/maximilianfeix/aktien-radar">github.com/maximilianfeix/aktien-radar</a></p>
-      </footer>
+    </section>
+
+    <section class="wrap reveal" id="faq">
+      <div class="head-row"><h2 class="h2">Fragen, die oft kommen</h2><p class="intro"></p></div>
+      <div class="faq-list">
+        <details class="faq-item"><summary>Macht mich das Radar reich?</summary><p>Nein, und niemand kann das versprechen. Das Radar ordnet Werte nach Regeln, die über Jahrzehnte belegt sind, und zeigt offen, wie sie abgeschnitten haben. In den Backtests war ein schlichter S&amp;P-500-ETF bei der reinen Rendite schwer zu schlagen. Die Regeln bringen vor allem kleinere Rückgänge. Verluste bleiben möglich, bis zum Totalverlust.</p></details>
+        <details class="faq-item"><summary>Was bedeutet „Kaufen“ genau?</summary><p>Der Wert liegt über seiner 200-Tage-Linie, ist über 6 und 12 Monate im Plus und gehört in seinem Markt zu den stärksten. Es ist ein Kandidat für deine eigene Prüfung, kein Auftrag. Der Bot handelt nicht selbst.</p></details>
+        <details class="faq-item"><summary>Wie nutze ich Stop und Ziel?</summary><p>Der Stop ist die Stelle, an der die Idee als gescheitert gilt. Das Ziel liegt doppelt so weit über dem Einstieg wie der Stop darunter. Der Rechner in der Detailansicht sagt dir, wie viele Stück du kaufen kannst, wenn du pro Position höchstens einen festen Anteil deines Depots riskieren willst.</p></details>
+        <details class="faq-item"><summary>Warum sind manche Backtests als „geschönt“ markiert?</summary><p>Die Tests auf Einzelaktien und Coins nutzen die heutige Auswahl, also Firmen, die es bis heute geschafft haben. Verlierer von damals fehlen. Das hebt die Rendite künstlich. Deshalb wählt das Radar seine Kernstrategie nur aus den Tests ohne diese Verzerrung.</p></details>
+        <details class="faq-item"><summary>Wie aktuell sind die Kurse?</summary><p>Die Daten kommen von Yahoo Finance und sind je nach Börse um einige Minuten verzögert. Die Seite wird jede Stunde neu berechnet. Für den Handel im Minutentakt ist sie nicht gedacht.</p></details>
+        <details class="faq-item"><summary>Wo landen meine Depot-Daten?</summary><p>Nur in deinem Browser. Watchlist, Positionen und Rechner-Einstellungen werden lokal gespeichert und nie übertragen.</p></details>
+      </div>
+    </section>
+
+    <section class="wrap star-cta reveal">
+      <h2 class="h2">Hat dir das Radar geholfen?</h2>
+      <a class="btn primary big" href="https://github.com/maximilianfeix/aktien-radar">★ Star auf GitHub</a>
     </section>
   </div>
+
+  <footer class="wrap">
+    <p>Keine Anlageberatung. Datenquelle: Yahoo Finance (Tageskurse, verzögert). Signale nutzen den letzten verfügbaren Kurs, Backtests nur abgeschlossene Handelstage. Kurse in Handelswährung.</p>
+    <p><a href="https://github.com/maximilianfeix/aktien-radar">Code und Methodik auf GitHub</a> · <a href="feed.xml">Feed</a> · <a href="data/latest.json">JSON</a></p>
+  </footer>
 </main>
 
 <div class="scrim" id="scrim"></div>

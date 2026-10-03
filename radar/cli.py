@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import ai, backtest, fundamentals, notify, regime, report, scoring, track
+from . import ai, backtest, fundamentals, news, notify, regime, report, scoring, track
 from . import indicators as ind
 from .data import MARKETS, all_tickers, clean_market, download_prices, load_universe
 
@@ -90,6 +90,7 @@ def run(data_dir: Path, out_dir: Path, with_fundamentals: bool = True) -> dict:
     markets = {m: universe[m]["label"] for m in MARKETS}
     payload = report.build_payload(datetime.now(UTC), market_regime, assets, markets, backtests, sorted(set(dropped)))
     stamp = payload["generated_at"]
+    payload["regime"]["ampel"] = regime.ampel(market_regime, payload["breadth"])
 
     previous_picks = previous["picks"]["overall"] if previous else None
     by_ticker = {a["ticker"]: a for a in assets}
@@ -120,6 +121,9 @@ def run(data_dir: Path, out_dir: Path, with_fundamentals: bool = True) -> dict:
     _write_if_changed(data_dir / "charts.json", charts)
     _write_if_changed(latest_file, payload)
     report.update_history(data_dir / "history.json", payload)
+    (data_dir.parent / "badges").mkdir(exist_ok=True)
+    for name, badge in report.badges(payload).items():
+        _write_if_changed(data_dir.parent / "badges" / f"{name}.json", badge)
     (data_dir.parent / "feed.xml").write_text(track.atom_feed(change_log, report.PAGE_URL, stamp), encoding="utf-8")
 
     picks_changed = previous_picks is None or previous_picks != payload["picks"]["overall"]
@@ -144,8 +148,15 @@ def main() -> None:
     run_parser.add_argument("--data-dir", type=Path, default=Path("docs/data"))
     run_parser.add_argument("--out-dir", type=Path, default=Path("out"))
     run_parser.add_argument("--no-fundamentals", action="store_true", help="Fundamentaldaten nicht neu laden")
+    news_parser = sub.add_parser("news", help="Recherche-Notizen der Claude-Routine prüfen und übernehmen")
+    news_parser.add_argument("source", type=Path)
+    news_parser.add_argument("target", type=Path)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    if args.command == "news":
+        known = {t for m in MARKETS for t in load_universe()[m]["tickers"]}
+        log.info("News übernommen" if news.import_file(args.source, args.target, known) else "Keine gültigen News")
+        return
     run(args.data_dir, args.out_dir, with_fundamentals=not args.no_fundamentals)
 
 

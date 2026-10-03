@@ -36,6 +36,17 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - name: Recherche-Notizen der Claude-Routine übernehmen
+        # Die Routine darf nur auf ihren eigenen Branch schreiben. Der Inhalt stammt aus Websuchen und wird
+        # deshalb als ungeprüfte Daten behandelt: radar/news.py lässt nur bekannte Felder und https-Links durch.
+        run: |
+          mkdir -p out
+          if git fetch -q --depth=1 origin claude/news 2>/dev/null && git show FETCH_HEAD:news.json > out/news_raw.json 2>/dev/null; then
+            python -m radar news out/news_raw.json docs/data/news.json
+          else
+            echo "Kein Branch claude/news mit news.json vorhanden."
+          fi
+
       - name: Signale und Backtests berechnen
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # optional: ohne Key entfällt der KI-Kommentar
@@ -54,7 +65,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
-          git add docs/data docs/feed.xml
+          git add docs/data docs/feed.xml docs/badges
           git commit -m "Radar-Update $stamp: $(cat out/summary.txt)"
           git push origin "$branch"
           gh pr create --base main --head "$branch" --label radar-update \

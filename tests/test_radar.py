@@ -352,6 +352,70 @@ def test_notifications_are_skipped_without_configuration(monkeypatch):
     assert notify.send("t", "x", "https://example.org") == []
 
 
+# --- news, traffic light, sectors, badges -------------------------------------------------------------
+
+def test_news_keeps_only_known_fields_https_links_and_known_tickers():
+    from radar import news
+
+    raw = {
+        "at": "2026-10-03T21:26:00Z",
+        "evil": "<script>",
+        "market": [{"text": "Ruhiger Handel.", "url": "https://example.org/a"}],
+        "items": [
+            {"ticker": "AAA", "pro": [{"text": "  Gute Zahlen.  ", "url": "https://example.org/b", "x": 1}],
+             "con": [{"text": "Abstufung.", "url": "javascript:alert(1)"}, {"text": ""}, "kaputt"],
+             "dates": [{"text": "T" * 1000}]},
+            {"ticker": "UNKNOWN", "pro": [{"text": "x"}]},
+            "kaputt",
+        ],
+    }
+    clean = news.sanitize(raw, {"AAA"})
+    assert set(clean) == {"at", "market", "items"}
+    assert [i["ticker"] for i in clean["items"]] == ["AAA"]
+    item = clean["items"][0]
+    assert item["pro"] == [{"text": "Gute Zahlen.", "url": "https://example.org/b"}]
+    assert item["con"] == [{"text": "Abstufung.", "url": None}]
+    assert len(item["dates"][0]["text"]) == news.MAX_TEXT
+
+
+def test_news_rejects_unusable_documents(tmp_path):
+    from radar import news
+
+    assert news.sanitize({"at": "gestern", "items": []}) is None
+    assert news.sanitize({"at": "2026-10-03T21:26:00Z", "items": []}) is None
+    assert news.sanitize(["kein", "dict"]) is None
+    target = tmp_path / "news.json"
+    (tmp_path / "raw.json").write_text("{kaputt", encoding="utf-8")
+    assert news.import_file(tmp_path / "raw.json", target) is False
+    assert news.import_file(tmp_path / "fehlt.json", target) is False
+    assert not target.exists()
+
+
+def test_ampel_is_green_in_a_calm_broad_uptrend_and_red_in_a_stressed_downtrend():
+    indices = {"^GSPC": {"uptrend": True}, "^GDAXI": {"uptrend": True}, "BTC-USD": {"uptrend": False}}
+    up = {"indices": indices, "vix": 13}
+    good = regime.ampel(up, {"us": {"above": 9, "total": 10}, "eu": {"above": 8, "total": 10}})
+    assert good["label"] == "Grün" and good["score"] > 85
+    down = {"indices": {"^GSPC": {"uptrend": False}, "^GDAXI": {"uptrend": False}}, "vix": 40}
+    bad = regime.ampel(down, {"us": {"above": 1, "total": 10}})
+    assert bad["label"] == "Rot" and bad["score"] < 10
+
+
+def test_sectors_and_badges_summarise_the_payload():
+    scored = scoring.score_market(market(), 252)
+    meta = {"STRONG": {"sector": "Tech"}, "FLAT": {"sector": "Tech"}, "CRASH": {"sector": "Energy"}}
+    rows = report.asset_rows(scored, "us", {"STRONG": "Strong AG"}, meta)
+    by_sector = {s["sector"]: s for s in report.sectors(rows)}
+    assert by_sector["Tech"]["count"] == 2 and by_sector["Tech"]["uptrend"] == 2
+    assert by_sector["Energy"]["uptrend"] == 0 and by_sector["Energy"]["buys"] == 0
+    assert report.sectors(rows)[0]["sector"] == "Tech"
+
+    badges = report.badges(payload())
+    assert badges["long"]["message"] == "Strong AG"
+    assert badges["assets"] == {"schemaVersion": 1, "label": "Werte", "message": "4", "color": "D4F77A",
+                                "labelColor": "121113"}
+
+
 # --- report -----------------------------------------------------------------------------------------
 
 def payload() -> dict:
