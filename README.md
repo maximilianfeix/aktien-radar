@@ -9,16 +9,42 @@ Backtest.
 > Keine Anlageberatung. Der Bot handelt nicht selbst und kennt keine Garantie auf Gewinne. Vergangene Renditen
 > sagen die Zukunft nicht voraus; Verluste bis zum Totalverlust sind möglich.
 
+## Was die Seite kann
+
+- **Top-Kandidaten** kurzfristig und langfristig, jeweils mit Einstieg, Stop, Kursziel und Begründung
+- **Kernstrategie**: was die im Backtest beste Strategie gerade hält
+- **Heatmap** aller Werte über 1 Tag, 1 Monat und 12 Monate
+- **Signalwechsel**: was hoch- oder herabgestuft wurde, auch als Feed (`feed.xml`)
+- **Live-Bilanz**: jedes Kaufsignal wird ab Erscheinen mitgeschrieben und beim Ende abgerechnet
+- **Detailansicht** je Wert: Kurschart mit 50- und 200-Tage-Linie, Kennzahlen, Quartalstermin, Rechner für die Positionsgröße
+- **Watchlist und Depot**: eigene Positionen eintragen und das Urteil des Radars dazu sehen (bleibt im Browser)
+- **Backtests** mit getrennter Auswertung bis 2020 und seit 2021
+- Suche mit `/`, heller und dunkler Modus, CSV-Export, offline nutzbar und als App installierbar
+
 ## Was jede Stunde passiert
 
-1. GitHub Actions lädt Tageskurse für rund 150 Werte von Yahoo Finance.
+1. GitHub Actions lädt Tageskurse für rund 150 Werte von Yahoo Finance (ein Lauf rechnet etwa 5 Sekunden).
 2. Jeder Wert bekommt einen Kurzfrist- und einen Langfrist-Score samt Signal (Kaufen, Halten, Beobachten, Meiden).
-3. Die Backtests laufen neu.
+3. Signalwechsel und Live-Bilanz werden fortgeschrieben, die Backtests neu gerechnet.
 4. Das Ergebnis geht als Pull Request ins Repo und wird automatisch gemergt.
 5. Der Tagesbericht (Issue mit Label `tagesbericht`) wird aktualisiert; ändern sich die Top-Kandidaten, kommt ein Kommentar dazu.
 6. Die GitHub Page wird neu veröffentlicht.
 
-Wer das Repo beobachtet (Watch → Custom → Issues), bekommt die Änderungen per Mail.
+## Benachrichtigungen (optional)
+
+Ändern sich die Top-Kandidaten, schickt der Lauf eine Nachricht an jeden Kanal, dessen Secret gesetzt ist:
+
+| Kanal | Secrets |
+|---|---|
+| Handy-Push über [ntfy](https://ntfy.sh) (ohne Konto) | `NTFY_TOPIC` |
+| Discord | `DISCORD_WEBHOOK_URL` |
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
+
+```bash
+gh secret set NTFY_TOPIC --repo maximilianfeix/aktien-radar   # frei gewählter, schwer zu erratender Name
+```
+
+Zusätzlich: Repo beobachten (Watch → Custom → Issues) für Mails zum Tagesbericht, oder `feed.xml` im Feedreader abonnieren.
 
 ## Die Strategie
 
@@ -82,6 +108,8 @@ gh secret set ANTHROPIC_API_KEY --repo maximilianfeix/aktien-radar
 | `radar/backtest.py` | Strategien und Kennzahlen |
 | `radar/regime.py` | Marktlage (Risk-on / Risk-off) |
 | `radar/fundamentals.py` | Qualität und Bewertung, 24 Stunden zwischengespeichert |
+| `radar/track.py` | Signalwechsel, Live-Bilanz, Feed |
+| `radar/notify.py` | Push-Nachrichten |
 | `radar/ai.py` | Optionaler Claude-Kommentar |
 | `docs/` | GitHub Page und die erzeugten Daten |
 | `.github/workflows/radar.yml` | Stündlicher Lauf |

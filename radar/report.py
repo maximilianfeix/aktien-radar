@@ -17,7 +17,9 @@ PAGE_URL = "https://maximilianfeix.github.io/aktien-radar/"
 HISTORY_LIMIT = 24 * 60  # hourly entries kept (60 days)
 ROW_FIELDS = ["price", "chg_1d", "mom_1w", "mom_1m", "mom_6m", "mom_12_1", "vs_sma200", "vol", "from_high",
               "rsi14", "rsi2", "atr_pct", "stop", "quality", "long_score", "short_score", "long_signal",
-              "short_signal", "reasons", "risks"]
+              "short_signal", "reasons", "risks", "target", "spark"]
+META_FIELDS = ["sector", "market_cap", "pe", "dividend_yield", "earnings_in_days"]
+EARNINGS_WARNING_DAYS = 7
 
 
 def _clean(value):
@@ -33,12 +35,28 @@ def _clean(value):
     return value
 
 
-def asset_rows(scored: pd.DataFrame, market: str, names: dict[str, str]) -> list[dict]:
+def asset_rows(scored: pd.DataFrame, market: str, names: dict[str, str],
+               meta: dict[str, dict] | None = None) -> list[dict]:
     rows = []
     for ticker, r in scored.iterrows():
-        rows.append({"ticker": ticker, "name": names.get(ticker, ticker), "market": market,
-                     **{f: r[f] for f in ROW_FIELDS}})
+        row = {"ticker": ticker, "name": names.get(ticker, ticker), "market": market,
+               **{f: r[f] for f in ROW_FIELDS}, **{f: (meta or {}).get(ticker, {}).get(f) for f in META_FIELDS}}
+        days = row["earnings_in_days"]
+        if days is not None and 0 <= days <= EARNINGS_WARNING_DAYS:
+            when = "heute" if days == 0 else "morgen" if days == 1 else f"in {days} Tagen"
+            row["risks"] = [*row["risks"], f"Quartalszahlen {when} – Kurssprünge in beide Richtungen möglich"]
+        rows.append(row)
     return _clean(rows)
+
+
+def breadth(assets: list[dict], markets: dict[str, str]) -> dict[str, dict]:
+    """Share of assets trading above their 200-day line, per market."""
+    out = {}
+    for market in markets:
+        known = [a for a in assets if a["market"] == market and a["vs_sma200"] is not None]
+        if known:
+            out[market] = {"above": sum(a["vs_sma200"] > 0 for a in known), "total": len(known)}
+    return out
 
 
 def top_picks(assets: list[dict], horizon: str, n: int = 3) -> list[dict]:
@@ -61,6 +79,7 @@ def build_payload(now: datetime, regime: dict, assets: list[dict], markets: dict
         "markets": markets,
         "picks": {"overall": overall, **picks},
         "assets": assets,
+        "breadth": breadth(assets, markets),
         "backtests": backtests,
         "core_strategy": core_strategy(backtests),
         "dropped": dropped,
@@ -104,16 +123,22 @@ def _fmt_price(x) -> str:
 def _pick_table(assets: list[dict], horizon: str) -> list[str]:
     if not assets:
         return ["_Aktuell kein Kaufsignal – Cash ist auch eine Position._", ""]
-    lines = ["| Wert | Markt | Kurs | Score | 1 M | 12-1 M | Stop | Warum |", "|---|---|--:|--:|--:|--:|--:|---|"]
+    lines = ["| Wert | Markt | Kurs | Score | 1 M | 12-1 M | Stop | Ziel | Warum |",
+             "|---|---|--:|--:|--:|--:|--:|--:|---|"]
     for a in assets:
         why = "; ".join(a["reasons"][:2]) or "–"
         lines.append(f"| **{a['name']}** (`{a['ticker']}`) | {a['market_label']} | {_fmt_price(a['price'])} | "
                      f"{a[f'{horizon}_score']:.0f} | {_fmt_pct(a['mom_1m'])} | {_fmt_pct(a['mom_12_1'])} | "
-                     f"{_fmt_price(a['stop'])} | {why} |")
+                     f"{_fmt_price(a['stop'])} | {_fmt_price(a['target'])} | {why} |")
     return [*lines, ""]
 
 
-def markdown(payload: dict, previous_picks: dict | None = None) -> str:
+HORIZON_LABEL = {"short": "kurzfristig", "long": "langfristig"}
+
+
+def markdown(payload: dict, previous_picks: dict | None = None, signal_changes: list[dict] | None = None,
+             track: dict | None = None) -> str:
+    names = {a["ticker"]: a["name"] for a in payload["assets"]}
     by_ticker = {a["ticker"]: {**a, "market_label": payload["markets"][a["market"]]} for a in payload["assets"]}
     overall = payload["picks"]["overall"]
     regime = payload["regime"]
@@ -134,11 +159,24 @@ def markdown(payload: dict, previous_picks: dict | None = None) -> str:
                 changes.append(f"- {label}: neu {', '.join(f'`{t}`' for t in new) or '–'}, "
                                f"raus {', '.join(f'`{t}`' for t in gone) or '–'}")
         lines += ["### Änderungen seit dem letzten Lauf", "", *(changes or ["- keine"]), ""]
-    core = next((b for b in payload["backtests"] if b["key"] == payload["core_strategy"]), None)
+    core = next((b for b in payload.get("backtests", []) if b["key"] == payload["core_strategy"]), None)
     if core:
         oos = core["out_of_sample"]
         lines += ["### Kernstrategie laut Backtest", "",
                   f"**{core['name']}** – Out-of-Sample seit 2021: {_fmt_pct(oos['cagr'])} p. a., "
                   f"Sharpe {oos['sharpe']:.2f}, maximaler Rückgang {_fmt_pct(oos['max_drawdown'])}.", ""]
+        if core.get("allocation"):
+            parts = [f"{names.get(t, t)} {w * 100:.0f} %" for t, w in core["allocation"].items()]
+            lines += [f"Aktuelle Zielaufteilung: {', '.join(parts)}.", ""]
+    if signal_changes:
+        lines += ["### Signalwechsel in diesem Lauf", ""]
+        lines += [f"- **{c['name']}** (`{c['ticker']}`), {HORIZON_LABEL[c['horizon']]}: {c['from']} → {c['to']}"
+                  for c in signal_changes[:15]]
+        lines += [""]
+    if track and track["stats"]["closed"]:
+        st = track["stats"]
+        lines += ["### Live-Bilanz der Kaufsignale", "",
+                  f"{st['closed']} abgeschlossene Signale, Trefferquote {st['hit_rate'] * 100:.0f} %, "
+                  f"durchschnittlich {_fmt_pct(st['avg_return'])}.", ""]
     lines += [f"Alle Werte, Charts und Backtests: {PAGE_URL}", "", f"_{payload['disclaimer']}_", ""]
     return "\n".join(lines)

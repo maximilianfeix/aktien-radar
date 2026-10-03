@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from radar import backtest, fundamentals, regime, report, scoring
+from radar import backtest, fundamentals, regime, report, scoring, track
 from radar import indicators as ind
 from radar.data import Prices, clean_market, load_universe
 
@@ -242,6 +242,116 @@ def test_universe_has_no_duplicate_tickers():
     assert len(tickers) == len(set(tickers))
 
 
+# --- track record, changes, context ------------------------------------------------------------------
+
+def asset(ticker: str, long: str, short: str = "Meiden", price: float = 100.0) -> dict:
+    return {"ticker": ticker, "name": ticker, "price": price, "long_signal": long, "short_signal": short}
+
+
+def test_signal_changes_lists_moves_and_puts_buys_first():
+    before = [asset("A", "Halten"), asset("B", "Meiden"), asset("C", "Kaufen")]
+    after = [asset("A", "Beobachten"), asset("B", "Kaufen"), asset("C", "Kaufen"), asset("NEW", "Kaufen")]
+    changes = track.signal_changes(before, after, "2026-01-02T10:00:00Z")
+    moves = [(c["ticker"], c["from"], c["to"]) for c in changes]
+    assert moves == [("B", "Meiden", "Kaufen"), ("A", "Halten", "Beobachten")]
+
+
+def test_track_record_opens_on_buy_and_closes_with_the_realised_return(tmp_path):
+    file = tmp_path / "track.json"
+    track.update_track(file, [asset("A", "Kaufen", price=100.0)], "2026-01-01T10:00:00Z")
+    running = track.update_track(file, [asset("A", "Kaufen", price=110.0)], "2026-01-02T10:00:00Z")
+    assert running["open"]["long"]["A"]["return"] == pytest.approx(0.10)
+    assert running["stats"]["closed"] == 0
+
+    done = track.update_track(file, [asset("A", "Halten", price=120.0)], "2026-01-03T10:00:00Z")
+    assert done["open"]["long"] == {}
+    assert done["closed"][0]["return"] == pytest.approx(0.20)
+    assert done["closed"][0]["since"] == "2026-01-01T10:00:00Z"
+    assert done["stats"] == {"closed": 1, "hit_rate": 1.0, "avg_return": pytest.approx(0.20), "open": 0,
+                             "open_avg_return": None}
+
+
+def test_track_record_survives_a_stock_split(tmp_path):
+    file = tmp_path / "track.json"
+    before = pd.DataFrame({"A": [100.0, 100.0]}, index=days(2))
+    track.update_track(file, [asset("A", "Kaufen", price=100.0)], "2026-01-01T10:00:00Z", before)
+    # 2-for-1 split: Yahoo halves the adjusted history, the live quote halves too.
+    after = pd.DataFrame({"A": [50.0, 50.0, 55.0]}, index=days(3))
+    record = track.update_track(file, [asset("A", "Kaufen", price=55.0)], "2026-01-02T10:00:00Z", after)
+    assert record["open"]["long"]["A"]["entry"] == pytest.approx(50.0)
+    assert record["open"]["long"]["A"]["return"] == pytest.approx(0.10)
+
+
+def test_track_record_keeps_a_signal_open_when_the_price_is_missing(tmp_path):
+    file = tmp_path / "track.json"
+    track.update_track(file, [asset("A", "Kaufen")], "2026-01-01T10:00:00Z")
+    later = track.update_track(file, [], "2026-01-02T10:00:00Z")
+    assert "A" in later["open"]["long"] and later["closed"] == []
+
+
+def test_atom_feed_only_carries_buy_related_changes_and_escapes_names():
+    changes = [
+        {"at": "2026-01-02T10:00:00Z", "ticker": "T", "name": "AT&T", "horizon": "long", "from": "Halten",
+         "to": "Kaufen", "price": 20.0},
+        {"at": "2026-01-02T10:00:00Z", "ticker": "X", "name": "X", "horizon": "long", "from": "Halten",
+         "to": "Meiden", "price": 1.0},
+    ]
+    feed = track.atom_feed(changes, "https://example.org/", "2026-01-02T10:00:00Z")
+    assert "AT&amp;T" in feed and feed.count("<entry>") == 1
+    import xml.dom.minidom
+    xml.dom.minidom.parseString(feed)
+
+
+def test_fundamentals_context_reports_days_to_the_next_earnings_date():
+    now = 1_800_000_000
+    data = {"A": {"earningsTimestampStart": now + 3 * 86400 + 60, "dividendYield": 1.8, "trailingPE": -4.0},
+            "B": {"earningsTimestamp": now - 10 * 86400}}
+    context = fundamentals.context(data, now=now)
+    assert context["A"]["earnings_in_days"] == 3
+    assert context["A"]["dividend_yield"] == pytest.approx(0.018)
+    assert context["A"]["pe"] is None
+    assert context["B"]["earnings_in_days"] is None
+
+
+def test_upcoming_earnings_become_a_risk_and_breadth_counts_uptrends():
+    scored = scoring.score_market(market(), 252)
+    meta = {"STRONG": {"earnings_in_days": 1, "sector": "Tech"}}
+    rows = {r["ticker"]: r for r in report.asset_rows(scored, "us", {}, meta)}
+    assert any("Quartalszahlen morgen" in r for r in rows["STRONG"]["risks"])
+    assert rows["STRONG"]["sector"] == "Tech" and rows["FLAT"]["sector"] is None
+    assert rows["STRONG"]["target"] > rows["STRONG"]["price"] > rows["STRONG"]["stop"]
+    assert report.breadth(list(rows.values()), {"us": "US"}) == {"us": {"above": 2, "total": 4}}
+
+
+def test_chart_series_thins_the_last_year_and_keeps_the_latest_session():
+    from radar.cli import chart_series
+
+    close = pd.DataFrame({"A": trending(600, 0.001)})
+    chart = chart_series(close)
+    assert len(chart["dates"]) == 130
+    assert chart["dates"][-1] == close.index[-1].strftime("%Y-%m-%d")
+    assert chart["series"]["A"]["c"][-1] == pytest.approx(close["A"].iloc[-1], rel=1e-4)
+    assert chart["series"]["A"]["s200"][-1] is not None
+
+
+def test_backtest_summary_reports_the_current_allocation():
+    close = pd.DataFrame({name: wavy(700, 0.001 * (i + 1)) for i, name in
+                          enumerate(["SPY", "QQQ", "IWM", "EFA", "EEM", "TLT", "IEF", "GLD", "VNQ", "DBC"])})
+    empty = pd.DataFrame()
+    results = {b["key"]: b for b in backtest.run_all({"etf": close, "us": empty, "eu": empty, "crypto": empty})}
+    allocation = results["etf_rotation"]["allocation"]
+    assert len(allocation) == 3 and sum(allocation.values()) == pytest.approx(1.0, abs=0.01)
+    assert results["bh_spy"]["allocation"] == {"SPY": 1.0}
+
+
+def test_notifications_are_skipped_without_configuration(monkeypatch):
+    from radar import notify
+
+    for name in ("DISCORD_WEBHOOK_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "NTFY_TOPIC"):
+        monkeypatch.delenv(name, raising=False)
+    assert notify.send("t", "x", "https://example.org") == []
+
+
 # --- report -----------------------------------------------------------------------------------------
 
 def payload() -> dict:
@@ -273,7 +383,9 @@ def test_picks_only_contain_buy_signals():
 
 
 def test_markdown_names_the_pick_and_reports_changes():
-    text = report.markdown(payload(), previous_picks={"short": ["OLD"], "long": ["STRONG"]})
+    moved = [{"name": "Strong AG", "ticker": "STRONG", "horizon": "long", "from": "Halten", "to": "Kaufen"}]
+    text = report.markdown(payload(), {"short": ["OLD"], "long": ["STRONG"]}, moved)
+    assert "langfristig: Halten → Kaufen" in text
     assert "Strong AG" in text
     assert "raus `OLD`" in text
     assert "Keine Anlageberatung" in text
