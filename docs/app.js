@@ -423,7 +423,7 @@ function renderCompare() {
   $("#cmp-chips").innerHTML = list.map((t, i) => `<button type="button" class="chip" data-cmp-del="${esc(t)}" aria-label="${esc(BY[t].name)} entfernen"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(${SERIES[i]});margin-right:8px"></i>${esc(BY[t].name)}<span class="x">✕</span></button>`).join("");
   const series = list.map((t, i) => {
     const m = CHARTS?.[BY[t].market], c = m?.series[t]?.c || [], first = c.find(v => v != null);
-    return { name: BY[t].name, color: `var(${SERIES[i]})`, pts: m ? m.dates.map((d, k) => [Date.parse(d), c[k] == null ? null : c[k] / first * 100]).filter(q => q[1] != null) : [] };
+    return { name: BY[t].name, color: `var(${SERIES[i]})`, pts: m && first ? m.dates.map((d, k) => [Date.parse(d), c[k] == null ? null : c[k] / first * 100]).filter(q => q[1] != null) : [] };
   });
   $("#cmp-legend").innerHTML = series.map(x => `<span><i style="background:${x.color}"></i>${esc(x.name)}</span>`).join("");
   lineChart($("#cmp-chart"), series, { fmt: v => num(v, 0), height: 340, direct: true });
