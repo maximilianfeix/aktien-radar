@@ -65,6 +65,42 @@ def top_picks(assets: list[dict], horizon: str, n: int = 3) -> list[dict]:
     return sorted(buys, key=lambda a: a[f"{horizon}_score"], reverse=True)[:n]
 
 
+def sectors(assets: list[dict]) -> list[dict]:
+    """Per sector: how many stocks, their average momentum and how many are in an uptrend or a buy."""
+    groups: dict[str, list[dict]] = {}
+    for a in assets:
+        if a.get("sector"):
+            groups.setdefault(a["sector"], []).append(a)
+
+    def mean(rows: list[dict], field: str) -> float | None:
+        values = [r[field] for r in rows if r[field] is not None]
+        return sum(values) / len(values) if values else None
+
+    out = [{"sector": name, "count": len(rows), "avg_1m": mean(rows, "mom_1m"), "avg_12_1": mean(rows, "mom_12_1"),
+            "uptrend": sum((r["vs_sma200"] or 0) > 0 for r in rows), "buys": sum(r["long_signal"] == BUY for r in rows)}
+           for name, rows in groups.items()]
+    return sorted(out, key=lambda s: s["avg_1m"] if s["avg_1m"] is not None else -9, reverse=True)
+
+
+def badges(payload: dict) -> dict[str, dict]:
+    """shields.io endpoint documents, so the README can show live values."""
+    names = {a["ticker"]: a["name"] for a in payload["assets"]}
+    overall = payload["picks"]["overall"]
+
+    def pick(horizon: str) -> str:
+        return names[overall[horizon][0]] if overall[horizon] else "kein Signal"
+
+    def badge(label: str, message: str) -> dict:
+        return {"schemaVersion": 1, "label": label, "message": message, "color": "D4F77A", "labelColor": "121113"}
+
+    return {
+        "short": badge("kurzfristig", pick("short")),
+        "long": badge("langfristig", pick("long")),
+        "regime": badge("Marktlage", payload["regime"]["label"]),
+        "assets": badge("Werte", str(len(payload["assets"]))),
+    }
+
+
 def build_payload(now: datetime, regime: dict, assets: list[dict], markets: dict[str, str], backtests: list[dict],
                   dropped: list[str]) -> dict:
     picks = {}
@@ -80,6 +116,7 @@ def build_payload(now: datetime, regime: dict, assets: list[dict], markets: dict
         "picks": {"overall": overall, **picks},
         "assets": assets,
         "breadth": breadth(assets, markets),
+        "sectors": sectors(assets),
         "backtests": backtests,
         "core_strategy": core_strategy(backtests),
         "dropped": dropped,

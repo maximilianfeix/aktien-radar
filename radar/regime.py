@@ -40,3 +40,20 @@ def market_regime(close: pd.DataFrame, names: dict[str, str]) -> dict:
     if stressed:
         text += f" Der VIX steht bei {vix:.0f} (Stress)."
     return {"state": state, "label": label, "text": text, "vix": vix, "indices": indices}
+
+
+def ampel(regime: dict, breadth: dict[str, dict]) -> dict:
+    """One number for the market mood, 0 (red) to 100 (green).
+
+    40 % index trends, 35 % breadth of the stock markets, 25 % calm on the VIX (12 = calm, 35 = panic).
+    """
+    indices = [v["uptrend"] for k, v in regime["indices"].items() if k != "BTC-USD"]
+    trend = sum(indices) / len(indices) if indices else 0.5
+    stocks = [b for m, b in breadth.items() if m in ("us", "eu") and b["total"]]
+    wide = sum(b["above"] for b in stocks) / sum(b["total"] for b in stocks) if stocks else 0.5
+    vix = regime.get("vix")
+    calm = 0.5 if vix is None else min(1.0, max(0.0, (35 - vix) / (35 - 12)))
+    score = round(100 * (0.40 * trend + 0.35 * wide + 0.25 * calm))
+    label = "Grün" if score >= 66 else "Gelb" if score >= 40 else "Rot"
+    parts = {"trend": round(trend, 3), "breadth": round(wide, 3), "calm": round(calm, 3)}
+    return {"score": score, "label": label, "parts": parts}

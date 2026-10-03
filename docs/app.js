@@ -26,10 +26,10 @@ const store = {
   set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ } },
 };
 const state = {
-  fMarket: "all", fSignal: "all", fWatch: false, query: "", sort: "long_score", dir: -1, heat: "chg_1d", group: 0,
+  fMarket: "all", fSignal: "all", fWatch: false, preset: null, compare: store.get("compare", null), query: "", sort: "long_score", dir: -1, heat: "chg_1d", group: 0,
   watch: new Set(store.get("watch", [])), positions: store.get("positions", []), calc: store.get("calc", { depot: 10000, risk: 1 }),
 };
-let DATA, BY, ROWS = [], CHARTS, BACKTESTS;
+let DATA, BY, ROWS = [], CHARTS, BACKTESTS, NEWS = null;
 const getJSON = (path, opts) => fetch(path, opts).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
 
 function seg(el, options, current, onPick) {
@@ -48,8 +48,8 @@ function spark(values, w, h, area = false) {
   const pts = values.map((v, i) => [(i / (values.length - 1)) * w, h - 2 - ((v - lo) / span) * (h - 4)]);
   const line = "M" + pts.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join("L");
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">`
-    + (area ? `<path d="${line}L${w} ${h}L0 ${h}Z" fill="var(--s1)" opacity=".14"/>` : "")
-    + `<path d="${line}" fill="none" stroke="var(--s1)" stroke-width="${area ? 2 : 1.5}" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+    + (area ? `<path d="${line}L${w} ${h}L0 ${h}Z" fill="var(--signal-ink)" opacity=".12"/>` : "")
+    + `<path d="${line}" fill="none" stroke="var(--signal-ink)" stroke-width="${area ? 2 : 1.5}" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
 }
 
 function reasons(a, max = 9) {
@@ -58,8 +58,8 @@ function reasons(a, max = 9) {
 
 function ring(score) {
   const c = 2 * Math.PI * 30;
-  return `<div class="ring" title="Score ${num(score, 0)} von 100"><svg width="72" height="72" viewBox="0 0 72 72"><circle cx="36" cy="36" r="30" fill="none" stroke="var(--grid)" stroke-width="7"/>
-    <circle cx="36" cy="36" r="30" fill="none" stroke="var(--s1)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(score / 100 * c).toFixed(1)} ${c.toFixed(1)}"/></svg><b>${num(score, 0)}</b></div>`;
+  return `<div class="ring" title="Score ${num(score, 0)} von 100"><svg width="76" height="76" viewBox="0 0 76 76"><circle cx="38" cy="38" r="30" fill="none" stroke="var(--grid)" stroke-width="7"/>
+    <circle cx="38" cy="38" r="30" fill="none" stroke="var(--signal-ink)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(score / 100 * c).toFixed(1)} ${c.toFixed(1)}"/></svg><b>${num(score, 0)}</b></div>`;
 }
 
 function pickCard(a, horizon, title) {
@@ -71,13 +71,52 @@ function pickCard(a, horizon, title) {
     ${reasons(a, 4)}</button>`;
 }
 
+function ago(iso) {
+  const min = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 6e4));
+  return min < 1 ? "gerade eben" : min < 60 ? `vor ${min} Min.` : min < 1440 ? `vor ${Math.round(min / 60)} Std.` : `vor ${Math.round(min / 1440)} Tagen`;
+}
+function countUp(el, to, digits = 0, suffix = "") {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = num(to, digits) + suffix; return; }
+  const t0 = performance.now(), run = t => {
+    const k = Math.min(1, (t - t0) / 1100), eased = 1 - (1 - k) ** 4;
+    el.textContent = num(to * eased, digits) + suffix;
+    if (k < 1) requestAnimationFrame(run);
+  };
+  requestAnimationFrame(run);
+}
+function gauge(score) {
+  const arc = Math.PI * 80, color = score >= 66 ? "var(--good)" : score >= 40 ? "var(--warning)" : "var(--critical)";
+  return `<div class="gauge"><svg viewBox="0 0 200 112" role="img" aria-label="Markt-Ampel ${score} von 100">
+    <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="var(--grid)" stroke-width="14" stroke-linecap="round"/>
+    <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="${color}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(score / 100 * arc).toFixed(1)} ${arc.toFixed(1)}"/></svg><b>${score}</b></div>`;
+}
+
 function renderOverview() {
-  const r = DATA.regime, o = DATA.picks.overall;
+  const r = DATA.regime, o = DATA.picks.overall, buys = DATA.assets.filter(a => a.long_signal === "Kaufen").length;
+  const above = Object.values(DATA.breadth || {}).reduce((s, b) => s + b.above, 0), total = Object.values(DATA.breadth || {}).reduce((s, b) => s + b.total, 0);
   $("#regime").innerHTML = badge({ risk_on: "Kaufen", neutral: "Beobachten", risk_off: "Meiden" }[r.state], "Marktlage: " + r.label);
+  $("#status").textContent = `Letzter Lauf ${ago(DATA.generated_at)} · ${DATA.assets.length} Werte geprüft`;
+  $("#status").title = new Date(DATA.generated_at).toLocaleString("de-DE");
+  $("#lede-count").textContent = DATA.assets.length;
   $("#regime-text").textContent = r.text;
-  $("#stamp").textContent = "Stand " + new Date(DATA.generated_at).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) + " Uhr";
   $("#disclaimer").textContent = DATA.disclaimer;
   $("#picks").innerHTML = pickCard(BY[o.short[0]], "short", "Kurzfristig · Tage bis Wochen") + pickCard(BY[o.long[0]], "long", "Langfristig · Monate bis Jahre");
+
+  const movers = [...DATA.assets].filter(a => a.chg_1d != null).sort((a, b) => Math.abs(b.chg_1d) - Math.abs(a.chg_1d)).slice(0, 18);
+  const tape = movers.map(a => `<button type="button" data-open="${esc(a.ticker)}" tabindex="-1"><b>${esc(a.name)}</b><span>${price(a.price)}</span><span class="${a.chg_1d >= 0 ? "up" : "down"}">${a.chg_1d >= 0 ? "▲" : "▼"} ${pct(a.chg_1d)}</span></button>`).join("");
+  $("#tape-in").innerHTML = tape + tape; $("#tape").hidden = !movers.length;
+
+  $("#numbers").innerHTML = `<div><div class="n" data-n="${DATA.assets.length}"></div><p><b>Werte geprüft.</b> Aktien, ETFs und Coins aus vier Märkten, jede Stunde neu bewertet.</p></div>
+    <div><div class="n" data-n="${buys}"></div><p><b>langfristige Kaufsignale.</b> Aufwärtstrend, positives Momentum und ein Score von mindestens 70.</p></div>
+    <div><div class="n" data-n="${total ? above / total * 100 : 0}" data-s=" %"></div><p><b>über der 200-Tage-Linie.</b> Je breiter der Aufwärtstrend, desto tragfähiger ist er.</p></div>
+    <div><div class="n" data-n="${r.ampel?.score ?? 0}"></div><p><b>von 100 auf der Markt-Ampel.</b> Trend der Indizes, Marktbreite und Nervosität in einer Zahl.</p></div>`;
+  new IntersectionObserver((entries, io) => { if (entries.some(e => e.isIntersecting)) { io.disconnect(); document.querySelectorAll("#numbers .n").forEach(el => countUp(el, +el.dataset.n, 0, el.dataset.s || "")); } }).observe($("#numbers"));
+
+  if (r.ampel) {
+    const part = (l, v) => `<span>${l}<b>${num(v * 100, 0)} %</b></span>`;
+    $("#ampel").innerHTML = `<h3>Markt-Ampel</h3>${gauge(r.ampel.score)}<div class="gauge-label">${esc(r.ampel.label)}</div>
+      <div class="rows">${part("Indizes im Aufwärtstrend", r.ampel.parts.trend)}${part("Aktien über 200-Tage-Linie", r.ampel.parts.breadth)}${part("Ruhe am Markt (VIX)", r.ampel.parts.calm)}</div>`;
+  }
   if (DATA.ai) {
     $("#ai").hidden = false;
     $("#ai").innerHTML = `<h3>Einordnung von Claude</h3>` + DATA.ai.text.split(/\n\s*\n/).map(p => `<p>${esc(p)}</p>`).join("");
@@ -87,23 +126,46 @@ function renderOverview() {
     const alloc = Object.entries(core.allocation || {}), cash = Math.max(0, 1 - alloc.reduce((s, [, w]) => s + w, 0));
     const parts = alloc.map(([t, w], i) => ({ name: BY[t]?.name || t, w, color: `var(${SERIES[i % SERIES.length]})` }));
     if (cash > 0.005) parts.push({ name: "Cash", w: cash, color: "var(--muted)" });
-    $("#core").innerHTML = `<h3>Kernstrategie hält gerade</h3><div style="font-weight:650">${esc(core.name)}</div>
+    $("#core").innerHTML = `<h3>Kernstrategie hält gerade</h3><div style="font-weight:500;font-size:19px;letter-spacing:-.02em">${esc(core.name)}</div>
       <div class="alloc">${parts.map(p => `<i style="width:${p.w * 100}%;background:${p.color}"></i>`).join("")}</div>
-      <div class="alloc-list">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.name)}<b>${num(p.w * 100, 0)} %</b></span>`).join("")}</div>
-      <p class="small" style="margin:10px 0 0">Seit 2021: ${pct(core.out_of_sample.cagr)} p. a., größter Rückgang ${pct(core.out_of_sample.max_drawdown, 0)}. Umschichtung am Monatsende.</p>`;
+      <div class="rows">${parts.map(p => `<span><i style="background:${p.color}"></i>${esc(p.name)}<b>${num(p.w * 100, 0)} %</b></span>`).join("")}</div>
+      <p class="small" style="margin:12px 0 0">Seit 2021: ${pct(core.out_of_sample.cagr)} p. a., größter Rückgang ${pct(core.out_of_sample.max_drawdown, 0)}. Umschichtung am Monatsende.</p>`;
   } else $("#core").hidden = true;
   $("#breadth").innerHTML = `<h3>Marktbreite</h3>` + Object.entries(DATA.breadth || {}).map(([m, b]) =>
     `<div class="meter"><span>${esc(DATA.markets[m])}</span><div class="track"><i style="width:${b.above / b.total * 100}%"></i></div><b>${b.above} / ${b.total}</b></div>`).join("")
-    + `<p class="small" style="margin:10px 0 0">Anteil der Werte über ihrer 200-Tage-Linie. Je breiter der Aufwärtstrend, desto tragfähiger.</p>`;
+    + `<p class="small" style="margin:12px 0 0">Anteil der Werte über ihrer 200-Tage-Linie.</p>`;
   const t = DATA.track;
   if (t) $("#track").innerHTML = `<h3>Live-Bilanz der Kaufsignale</h3>` + (t.closed
     ? `<div class="stat">${num(t.hit_rate * 100, 0)} % Treffer</div><p class="small">${t.closed} abgeschlossene Signale, im Schnitt ${pct(t.avg_return)}.</p>`
     : `<div class="stat">${t.open} offen</div><p class="small">Noch kein Signal abgeschlossen.</p>`)
-    + `<p class="small" style="margin:0">Laufende Signale im Schnitt ${pct(t.open_avg_return)}. Mitgeschrieben seit ${new Date(t.since).toLocaleDateString("de-DE")}.</p>`;
-  const tiles = Object.values(r.indices).map(i => `<div class="card"><div class="small">${esc(i.name)}</div><div class="stat" style="font-size:20px">${price(i.price)}</div>
-    <div class="small" style="margin-bottom:8px">${pct(i.vs_sma200)} zur 200-Tage-Linie</div>${badge(i.uptrend ? "Kaufen" : "Meiden", i.uptrend ? "Aufwärtstrend" : "Abwärtstrend")}</div>`);
-  if (r.vix != null) tiles.push(`<div class="card"><div class="small">VIX (Nervosität)</div><div class="stat" style="font-size:20px">${num(r.vix, 1)}</div><div class="small">unter 20 ruhig, über 28 Stress</div></div>`);
+    + `<p class="small" style="margin:0">Laufende Signale im Schnitt ${pct(t.open_avg_return)}. Mitgeschrieben seit ${new Date(t.since).toLocaleDateString("de-DE")}. <a href="#signale">Zur Bilanz</a></p>`;
+  const tiles = Object.values(r.indices).map(i => `<div class="card"><div class="small">${esc(i.name)}</div><div class="stat" style="font-size:22px">${price(i.price)}</div>
+    <div class="small" style="margin-bottom:10px">${pct(i.vs_sma200)} zur 200-Tage-Linie</div>${badge(i.uptrend ? "Kaufen" : "Meiden", i.uptrend ? "Aufwärtstrend" : "Abwärtstrend")}</div>`);
+  if (r.vix != null) tiles.push(`<div class="card"><div class="small">VIX (Nervosität)</div><div class="stat" style="font-size:22px">${num(r.vix, 1)}</div><div class="small">unter 20 ruhig, über 28 Stress</div></div>`);
   $("#indices").innerHTML = tiles.join("");
+
+  const day = [...DATA.assets].filter(a => a.chg_1d != null).sort((a, b) => b.chg_1d - a.chg_1d);
+  const mover = a => `<button type="button" data-open="${esc(a.ticker)}"><span>${esc(a.name)}</span><span class="tk">${esc(a.ticker)}</span><b class="${a.chg_1d >= 0 ? "up" : "down"}">${pct(a.chg_1d)}</b></button>`;
+  $("#gainers").innerHTML = day.slice(0, 6).map(mover).join(""); $("#losers").innerHTML = day.slice(-6).reverse().map(mover).join("");
+
+  $("#sectors thead").innerHTML = `<tr><th class="l">Sektor</th><th>Werte</th><th>1 M</th><th>12-1 M</th><th>im Aufwärtstrend</th><th>Kaufsignale</th></tr>`;
+  $("#sectors tbody").innerHTML = (DATA.sectors || []).map(x => `<tr><td class="name"><b>${esc(x.sector)}</b></td><td>${x.count}</td><td>${pct(x.avg_1m)}</td><td>${pct(x.avg_12_1, 0)}</td><td>${x.uptrend} / ${x.count}</td><td>${x.buys}</td></tr>`).join("")
+    || `<tr><td class="l">Noch keine Sektordaten.</td></tr>`;
+  const soon = DATA.assets.filter(a => a.earnings_in_days != null && a.earnings_in_days <= 14).sort((a, b) => a.earnings_in_days - b.earnings_in_days).slice(0, 14);
+  $("#earnings").innerHTML = soon.map(a => `<button type="button" data-open="${esc(a.ticker)}"><span>${esc(a.name)}</span>${badge(a.long_signal)}<b>${a.earnings_in_days === 0 ? "heute" : a.earnings_in_days === 1 ? "morgen" : "in " + a.earnings_in_days + " Tagen"}</b></button>`).join("")
+    || `<p class="small" style="margin:0">In den nächsten 14 Tagen stehen bei den beobachteten Aktien keine Termine an.</p>`;
+}
+
+const safeLink = p => p.url ? ` <a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">Quelle</a>` : "";
+const newsList = n => `<ul class="why">${n.pro.map(p => `<li class="pro">${esc(p.text)}${safeLink(p)}</li>`).join("")}${n.con.map(p => `<li class="con">${esc(p.text)}${safeLink(p)}</li>`).join("")}${n.dates.map(p => `<li>${esc(p.text)}${safeLink(p)}</li>`).join("")}</ul>`;
+async function renderNews() {
+  try { NEWS = await getJSON("data/news.json", { cache: "no-cache" }); } catch { return; }
+  if (!NEWS?.at || Date.now() - Date.parse(NEWS.at) > 36 * 36e5) { NEWS = null; return; }
+  const items = NEWS.items.filter(n => BY[n.ticker]);
+  $("#news").hidden = false;
+  $("#news").innerHTML = `<h3>Nachrichtenlage · ${ago(NEWS.at)}</h3><div class="grid g2">${items.map(n => `<div><button type="button" class="chip" data-open="${esc(n.ticker)}" style="margin-bottom:10px">${esc(BY[n.ticker].name)}</button>${newsList(n)}</div>`).join("")}</div>`
+    + (NEWS.market.length ? `<p class="small" style="margin:14px 0 0"><b>Gesamtmarkt:</b> ${NEWS.market.map(p => esc(p.text) + safeLink(p)).join(" ")}</p>` : "")
+    + `<p class="small" style="margin:8px 0 0">Automatisch von Claude recherchiert. Jede Aussage ist mit ihrer Quelle verlinkt.</p>`;
 }
 
 async function renderChanges() {
@@ -141,11 +203,20 @@ function buildTable() {
   ROWS = [...body.children].map((tr, i) => ({ tr, a: DATA.assets[i], text: (DATA.assets[i].name + " " + DATA.assets[i].ticker).toLowerCase() }));
   applyTable();
 }
+const PRESETS = {
+  pullback: ["Rücksetzer im Aufwärtstrend", a => a.vs_sma200 > 0 && a.rsi2 != null && a.rsi2 < 15],
+  highs: ["Nahe am 52-Wochen-Hoch", a => a.vs_sma200 > 0 && a.from_high != null && a.from_high > -0.02],
+  quality: ["Qualität mit Kaufsignal", a => a.quality >= 0.7 && a.long_signal === "Kaufen"],
+  dividend: ["Dividende im Aufwärtstrend", a => a.dividend_yield >= 0.025 && a.vs_sma200 > 0],
+  oversold: ["Überverkauft", a => a.rsi14 != null && a.rsi14 < 30],
+  calm: ["Ruhige Werte mit Kaufsignal", a => a.vol != null && a.vol < 0.2 && a.long_signal === "Kaufen"],
+  earnings: ["Zahlen in 14 Tagen", a => a.earnings_in_days != null && a.earnings_in_days <= 14],
+};
 function visibleRows() {
   const q = state.query.toLowerCase();
   return ROWS.filter(r => (state.fMarket === "all" || r.a.market === state.fMarket)
     && (state.fSignal === "all" || r.a.long_signal === state.fSignal || r.a.short_signal === state.fSignal)
-    && (!state.fWatch || state.watch.has(r.a.ticker)) && (!q || r.text.includes(q)));
+    && (!state.fWatch || state.watch.has(r.a.ticker)) && (!q || r.text.includes(q)) && (!state.preset || PRESETS[state.preset][1](r.a)));
 }
 function applyTable() {
   $("#assets thead").innerHTML = "<tr>" + COLS.map(([k, l, c]) => `<th class="${c}">${k === "watch" || k === "spark" ? l : `<button type="button" data-k="${k}">${l}${state.sort === k ? (state.dir < 0 ? " ↓" : " ↑") : ""}</button>`}</th>`).join("") + "</tr>";
@@ -178,8 +249,8 @@ function lineChart(box, series, { log = false, fmt, height = 320, hlines = [], d
     box.onmousemove = box.ontouchmove = box.ontouchstart = null;
     return;
   }
-  const W = box.clientWidth || 600, H = height, labels = direct && series.length <= 4 && W > 560;
-  const m = { t: 12, r: labels ? 150 : hlines.length ? 56 : 12, b: 26, l: 52 };
+  const W = box.clientWidth || 600, H = height, labels = direct && series.length <= 4 && W > 640;
+  const m = { t: 12, r: labels ? 190 : hlines.length ? 56 : 12, b: 26, l: 52 };
   const f = v => log ? Math.log(v) : v;
   const xs = series.flatMap(s => s.pts.map(p => p[0])), ys = series.flatMap(s => s.pts.map(p => p[1])).concat(hlines.map(h => h.v));
   const x0 = Math.min(...xs), x1 = Math.max(...xs), lo = Math.min(...ys), hi = Math.max(...ys);
@@ -202,7 +273,7 @@ function lineChart(box, series, { log = false, fmt, height = 320, hlines = [], d
   if (labels) {
     const ends = series.map(s => ({ s, y: Y(s.pts.at(-1)[1]) })).sort((a, b) => a.y - b.y);
     ends.forEach((e, i) => { if (i && e.y - ends[i - 1].y < 30) e.y = ends[i - 1].y + 30; });
-    svg += ends.map(e => `<text x="${W - m.r + 8}" y="${e.y}" font-size="12" fill="var(--ink-2)"><tspan font-weight="600" fill="var(--ink)">${fmt(e.s.pts.at(-1)[1])}</tspan><tspan x="${W - m.r + 8}" dy="14">${esc(e.s.name.length > 24 ? e.s.name.slice(0, 23) + "…" : e.s.name)}</tspan></text>`).join("");
+    svg += ends.map(e => `<text x="${W - m.r + 8}" y="${e.y}" font-size="12" fill="var(--ink-2)"><tspan font-weight="600" fill="var(--ink)">${fmt(e.s.pts.at(-1)[1])}</tspan><tspan x="${W - m.r + 8}" dy="14">${esc(e.s.name.length > 22 ? e.s.name.slice(0, 21) + "…" : e.s.name)}</tspan></text>`).join("");
   }
   svg += `<g class="hover" style="display:none"><line y1="${m.t}" y2="${H - m.b}" stroke="var(--axis)"/>${series.map(s => `<circle r="4.5" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join("")}</g>`;
   box.insertAdjacentHTML("afterbegin", `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Kursverlauf, Werte stehen in der Tabelle bzw. im Text daneben">${svg}</svg>`);
@@ -228,6 +299,11 @@ function lineChart(box, series, { log = false, fmt, height = 320, hlines = [], d
 }
 
 /* Detail drawer */
+function rangeBar(a) {
+  if (a.from_high == null || !a.spark?.length) return "";
+  const high = a.price / (1 + a.from_high), low = Math.min(...a.spark, a.price), pos = high > low ? (a.price - low) / (high - low) * 100 : 100;
+  return `<div class="range" title="Lage in der 52-Wochen-Spanne"><i style="left:${Math.min(100, Math.max(0, pos)).toFixed(0)}%"></i></div><div class="range-ends"><span>52-W-Tief ${price(low)}</span><span>52-W-Hoch ${price(high)}</span></div>`;
+}
 let lastFocus = null;
 function calcOutput(a) {
   const { depot, risk } = state.calc, k = unit(a), cost = a.price * k, perUnit = (a.price - a.stop) * k;
@@ -250,7 +326,8 @@ function openDrawer(ticker, push = true) {
       <span style="margin-left:auto">${badge(a.short_signal, "Kurzfristig: " + a.short_signal)} ${badge(a.long_signal, "Langfristig: " + a.long_signal)}</span></div>
     <div class="card"><div class="legend" style="margin-top:0"><span><i style="background:var(--s1)"></i>Kurs</span><span><i style="background:var(--s2)"></i>50-Tage-Linie</span><span><i style="background:var(--s3)"></i>200-Tage-Linie</span></div>
       <div class="chart" id="price-chart"><div class="tip"></div><div class="skeleton" style="height:240px"></div></div></div>
-    <div class="card"><h3>Warum</h3>${reasons(a)}</div>
+    <div class="card"><h3>Warum</h3>${reasons(a)}${rangeBar(a)}</div>
+    ${NEWS?.items.find(n => n.ticker === a.ticker) ? `<div class="card"><h3>Nachrichtenlage · ${ago(NEWS.at)}</h3>${newsList(NEWS.items.find(n => n.ticker === a.ticker))}</div>` : ""}
     <div class="card"><h3>Handelsplan</h3><dl class="levels" style="margin-bottom:12px"><div><dt>Einstieg</dt><dd>${price(a.price)}</dd></div><div><dt>Stop (${pct(a.stop / a.price - 1)})</dt><dd>${price(a.stop)}</dd></div><div><dt>Ziel (${pct(a.target / a.price - 1)})</dt><dd>${price(a.target)}</dd></div></dl>
       <div class="calc"><label>Depotgröße<input id="c-depot" type="number" min="0" step="100" value="${state.calc.depot}"></label><label>Risiko je Position in %<input id="c-risk" type="number" min="0" max="100" step="0.1" value="${state.calc.risk}"></label></div>
       <div class="calc-out" id="c-out">${calcOutput(a)}</div><p class="small" style="margin:8px 0 0">Beträge in Handelswährung.${pence} Der Stop gilt als Schlusskurs-Stop.</p></div>
@@ -319,6 +396,54 @@ function renderPositions() {
   $("#pos-sum").textContent = state.positions.length
     ? Object.entries(totals).map(([cur, t]) => `${cur}: ${price(t.value)} Wert, ${pct(t.value / t.cost - 1)} auf den Einsatz`).join(" · ")
     : "Noch keine Position eingetragen.";
+  renderXray();
+}
+
+function renderXray() {
+  const held = state.positions.map(p => BY[p.t]).filter(Boolean);
+  if (!held.length) { $("#xray").innerHTML = ""; return; }
+  const checks = [], add = (ok, text) => checks.push(`<li class="${ok ? "pro" : "con"}">${text}</li>`), names = list => list.map(a => esc(a.name)).join(", ");
+  const avoid = held.filter(a => a.long_signal === "Meiden"), below = held.filter(a => a.vs_sma200 < 0), soon = held.filter(a => a.earnings_in_days != null && a.earnings_in_days <= 7);
+  const hot = held.filter(a => a.rsi14 > 75), markets = new Set(held.map(a => a.market)), sectors = held.filter(a => a.sector).reduce((m, a) => m.set(a.sector, (m.get(a.sector) || 0) + 1), new Map());
+  const top = [...sectors].sort((x, y) => y[1] - x[1])[0];
+  add(!avoid.length, avoid.length ? `Das Radar rät ab bei: ${names(avoid)}. Ausstieg prüfen.` : "Keine Position mit dem Signal „Meiden“.");
+  add(!below.length, below.length ? `Unter der 200-Tage-Linie: ${names(below)}.` : "Alle Positionen liegen über ihrer 200-Tage-Linie.");
+  add(held.length >= 5, held.length >= 5 ? `${held.length} Positionen – ordentlich gestreut.` : `Nur ${held.length} ${held.length === 1 ? "Position" : "Positionen"}. Ein einzelner Fehlgriff trifft das Depot hart.`);
+  add(markets.size > 1, markets.size > 1 ? `Verteilt auf ${markets.size} Märkte.` : `Alles in einem Markt (${esc(DATA.markets[[...markets][0]])}).`);
+  if (top && held.length >= 3) add(top[1] / held.length <= 0.5, top[1] / held.length <= 0.5 ? "Kein Sektor stellt mehr als die Hälfte der Positionen." : `Klumpen: ${top[1]} von ${held.length} Positionen im Sektor ${esc(top[0])}.`);
+  if (hot.length) add(false, `Überkauft, nicht nachkaufen: ${names(hot)}.`);
+  if (soon.length) add(false, `Quartalszahlen in den nächsten 7 Tagen: ${names(soon)}.`);
+  $("#xray").innerHTML = `<h3>Depot-Check</h3><ul class="why">${checks.join("")}</ul>`;
+}
+
+/* Compare chart */
+const cmpList = () => state.compare || [DATA.picks.overall.long[0], DATA.picks.overall.short[0], "EUNL.DE"].filter((t, i, all) => t && BY[t] && all.indexOf(t) === i);
+function renderCompare() {
+  const list = cmpList().filter(t => BY[t]).slice(0, 4);
+  $("#cmp-chips").innerHTML = list.map((t, i) => `<button type="button" class="chip" data-cmp-del="${esc(t)}" aria-label="${esc(BY[t].name)} entfernen"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(${SERIES[i]});margin-right:8px"></i>${esc(BY[t].name)}<span class="x">✕</span></button>`).join("");
+  const series = list.map((t, i) => {
+    const m = CHARTS?.[BY[t].market], c = m?.series[t]?.c || [], first = c.find(v => v != null);
+    return { name: BY[t].name, color: `var(${SERIES[i]})`, pts: m && first ? m.dates.map((d, k) => [Date.parse(d), c[k] == null ? null : c[k] / first * 100]).filter(q => q[1] != null) : [] };
+  });
+  $("#cmp-legend").innerHTML = series.map(x => `<span><i style="background:${x.color}"></i>${esc(x.name)}</span>`).join("");
+  lineChart($("#cmp-chart"), series, { fmt: v => num(v, 0), height: 340, direct: true });
+}
+async function loadCompare() {
+  try { await loadCharts(); } catch { /* the chart shows its empty state */ }
+  renderCompare();
+  new ResizeObserver(() => renderCompare()).observe($("#cmp-chart"));
+}
+
+/* Open signals of the live record */
+async function loadSignals() {
+  let track;
+  try { track = await getJSON("data/track.json", { cache: "no-cache" }); } catch { return; }
+  const open = ["short", "long"].flatMap(h => Object.entries(track.open[h]).map(([t, e]) => ({ t, h, ...e }))).sort((a, b) => b.return - a.return);
+  const rows = [...open.slice(0, 8), ...(open.length > 16 ? open.slice(-8) : open.slice(8))];
+  const line = (e, done) => `<tr class="row" data-open="${esc(e.t || e.ticker)}"><td class="name"><b>${esc(e.name)}</b><br><span class="tk">${esc(e.t || e.ticker)} · ${HORIZON[e.h || e.horizon]}</span></td><td class="l">${done ? "beendet " + when(e.until) : "läuft"}</td><td>${when(e.since)}</td><td>${price(e.entry)}</td><td>${price(done ? e.exit : e.price)}</td><td class="${e.return >= 0 ? "up" : "down"}">${pct(e.return)}</td></tr>`;
+  $("#open-signals thead").innerHTML = `<tr><th class="l">Wert</th><th class="l">Status</th><th>Signal seit</th><th>Einstieg</th><th>Kurs</th><th>Ergebnis</th></tr>`;
+  $("#open-signals tbody").innerHTML = track.closed.slice(0, 8).map(e => line(e, true)).join("") + rows.map(e => line(e, false)).join("")
+    || `<tr><td class="l">Noch keine Signale mitgeschrieben.</td></tr>`;
 }
 
 /* Backtests (loaded when scrolled into view) */
@@ -386,6 +511,10 @@ function wire() {
   document.addEventListener("click", e => {
     const star = e.target.closest("[data-star]");
     if (star) { e.stopPropagation(); toggleStar(star.dataset.star); return; }
+    const cmpDel = e.target.closest("[data-cmp-del]");
+    if (cmpDel) { state.compare = cmpList().filter(t => t !== cmpDel.dataset.cmpDel); store.set("compare", state.compare); renderCompare(); return; }
+    const preset = e.target.closest("[data-preset]");
+    if (preset) { state.preset = state.preset === preset.dataset.preset ? null : preset.dataset.preset; document.querySelectorAll("[data-preset]").forEach(b => b.setAttribute("aria-pressed", b.dataset.preset === state.preset)); applyTable(); return; }
     const del = e.target.closest("[data-del]");
     if (del) { state.positions.splice(+del.dataset.del, 1); store.set("positions", state.positions); renderPositions(); return; }
     if (e.target.closest("#close") || e.target.id === "scrim") { closeDrawer(); return; }
@@ -407,8 +536,16 @@ function wire() {
     const b = e.target.closest("button"); if (!b) return;
     state.dir = state.sort === b.dataset.k ? -state.dir : (b.dataset.k === "name" ? 1 : -1); state.sort = b.dataset.k; applyTable();
   };
-  $("#f-watch").onclick = e => { state.fWatch = !state.fWatch; e.currentTarget.setAttribute("aria-pressed", state.fWatch); e.currentTarget.textContent = (state.fWatch ? "★" : "☆") + " Watchlist"; e.currentTarget.classList.toggle("primary", state.fWatch); applyTable(); };
+  $("#f-watch").onclick = e => { state.fWatch = !state.fWatch; e.currentTarget.setAttribute("aria-pressed", state.fWatch); e.currentTarget.textContent = (state.fWatch ? "★" : "☆") + " Watchlist"; applyTable(); };
   $("#csv").onclick = exportCSV;
+  const lookup = raw => BY[raw] ? raw : DATA.assets.find(a => a.ticker.toLowerCase() === raw.toLowerCase() || a.name.toLowerCase() === raw.toLowerCase())?.ticker;
+  $("#cmp-form").onsubmit = e => {
+    e.preventDefault();
+    const t = lookup($("#cmp-ticker").value.trim()), list = cmpList();
+    if (!t || list.includes(t)) return;
+    state.compare = [...list, t].slice(-4); store.set("compare", state.compare); e.target.reset(); renderCompare();
+  };
+  addEventListener("scroll", () => $("#nav").classList.toggle("stuck", scrollY > 8), { passive: true });
   $("#pos-form").onsubmit = e => {
     e.preventDefault();
     const raw = $("#pos-ticker").value.trim(), t = BY[raw] ? raw : DATA.assets.find(a => a.ticker.toLowerCase() === raw.toLowerCase() || a.name.toLowerCase() === raw.toLowerCase())?.ticker;
@@ -423,23 +560,27 @@ async function init() {
   wire();
   try { DATA = await getJSON("data/latest.json", { cache: "no-cache" }); }
   catch (e) {
-    $("#loading").hidden = true; $("#error").hidden = false;
+    $("#picks").hidden = true; $("#error").hidden = false; $("#status").textContent = "Keine Daten";
     $("#error").textContent = "Die Daten konnten nicht geladen werden (" + e.message + "). Bitte später erneut versuchen.";
     return;
   }
   BY = Object.fromEntries(DATA.assets.map(a => [a.ticker, a]));
-  $("#loading").hidden = true; $("#app").hidden = false;
+  $("#app").hidden = false;
   const markets = Object.entries(DATA.markets);
   renderOverview();
   seg($("#heat-period"), Object.entries(HEAT).map(([k, v]) => [k, v[0]]), state.heat, v => { state.heat = v; renderHeat(); });
   renderHeat();
+  $("#presets").innerHTML = Object.entries(PRESETS).map(([k, v]) => `<button type="button" class="chip" data-preset="${k}" aria-pressed="false">${v[0]}</button>`).join("");
   seg($("#f-market"), [["all", "Alle Märkte"], ...markets], "all", v => { state.fMarket = v; applyTable(); });
   seg($("#f-signal"), [["all", "Alle Signale"], ["Kaufen", "Kaufen"], ["Halten", "Halten"], ["Beobachten", "Beobachten"], ["Meiden", "Meiden"]], "all", v => { state.fSignal = v; applyTable(); });
   buildTable();
   $("#tickers").innerHTML = DATA.assets.map(a => `<option value="${esc(a.ticker)}">${esc(a.name)}</option>`).join("");
-  renderPositions(); setupSearch(); fromHash(); renderChanges();
+  renderPositions(); setupSearch(); renderChanges();
+  renderNews().finally(fromHash);
   if (/^#[a-z]+$/.test(location.hash)) $(location.hash)?.scrollIntoView();  // the section did not exist yet when the browser tried
-  lazy($("#backtests"), loadBacktests); lazy($("#verlauf"), loadHistory);
+  lazy($("#backtests"), loadBacktests); lazy($("#verlauf"), loadHistory); lazy($("#vergleich"), loadCompare); lazy($("#signale"), loadSignals);
+  const reveal = new IntersectionObserver(entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); reveal.unobserve(e.target); } }), { rootMargin: "0px 0px -8% 0px" });
+  document.querySelectorAll(".reveal").forEach(el => reveal.observe(el));
   (window.requestIdleCallback || setTimeout)(() => loadCharts().catch(() => {}));
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 }

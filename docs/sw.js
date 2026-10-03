@@ -1,5 +1,5 @@
 // Offline support. Page shell: answer from cache, refresh in the background. Data: network first, cache as fallback.
-const CACHE = "radar-v2";
+const CACHE = "radar-v3";
 const SHELL = ["./", "style.css", "app.js", "icon.svg", "manifest.webmanifest"];
 
 self.addEventListener("install", event => {

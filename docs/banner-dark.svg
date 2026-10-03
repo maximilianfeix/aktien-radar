@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" role="img" aria-label="Aktien-Radar – was sich jetzt lohnt">
+  <rect width="1280" height="360" rx="28" fill="#121113"/>
+  <path d="M0 300 L90 286 L170 292 L250 262 L330 270 L410 232 L490 244 L570 204 L650 214 L730 176 L810 190 L890 142 L970 156 L1050 110 L1130 122 L1210 78 L1280 66 L1280 360 L0 360 Z" fill="#D4F77A" opacity=".10"/>
+  <path d="M0 300 L90 286 L170 292 L250 262 L330 270 L410 232 L490 244 L570 204 L650 214 L730 176 L810 190 L890 142 L970 156 L1050 110 L1130 122 L1210 78 L1280 66" fill="none" stroke="#D4F77A" stroke-width="3" stroke-linejoin="round" opacity=".7"/>
+  <g transform="translate(72 64)"><rect width="56" height="56" rx="16" fill="#D4F77A"/><path d="M11 38l12-13 9 7 14-17" fill="none" stroke="#121113" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="46" cy="15" r="4" fill="#121113"/></g>
+  <text x="146" y="103" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="30" font-weight="600" fill="#EDEBE6" letter-spacing="-1">Aktien-Radar</text>
+  <text x="68" y="212" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="84" font-weight="700" fill="#EDEBE6" letter-spacing="-4">Was sich <tspan fill="#D4F77A">jetzt lohnt.</tspan></text>
+  <text x="72" y="266" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="24" fill="#9A97A0">Stündliche Signale für Aktien, ETFs und Krypto. Mit Begründung, Stop, Kursziel und Backtests.</text>
+  <rect x=".5" y=".5" width="1279" height="359" rx="28" fill="none" stroke="#2B292F"/>
+</svg>
