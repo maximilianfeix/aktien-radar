@@ -10,6 +10,8 @@ const pct = (x, d = 1) => {
   const r = Math.round(x * 100 * 10 ** d) / 10 ** d;  // round first so that -0.0001 does not print as "-0,0 %"
   return (r > 0 ? "+" : "") + NF[d].format(r || 0) + " %";
 };
+const CURRENCY = { L: "GBP", SW: "CHF", CO: "DKK", DE: "EUR", AS: "EUR", PA: "EUR", MC: "EUR", MI: "EUR" };
+const currency = a => CURRENCY[a.ticker.split(".")[1]] || "USD";
 const unit = a => a.ticker.endsWith(".L") ? 0.01 : 1;  // London quotes are in pence; money amounts are shown in pounds
 const big = x => x == null ? "–" : x >= 1e12 ? num(x / 1e12, 2) + " Bio." : x >= 1e9 ? num(x / 1e9, 1) + " Mrd." : num(x / 1e6, 0) + " Mio.";
 const when = iso => new Date(iso).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
@@ -256,6 +258,7 @@ function openDrawer(ticker, push = true) {
       ${metric("zur 200-T-Linie", pct(a.vs_sma200, 0))}${metric("zum 52-W-Hoch", pct(a.from_high, 0))}${metric("Schwankung p. a.", a.vol == null ? "–" : num(a.vol * 100, 0) + " %")}${metric("RSI 14", num(a.rsi14, 0))}
       ${a.market_cap ? metric("Börsenwert", big(a.market_cap)) : ""}${a.pe ? metric("KGV", num(a.pe, 1)) : ""}${a.dividend_yield ? metric("Dividende", num(a.dividend_yield * 100, 1) + " %") : ""}${a.earnings_in_days != null ? metric("Quartalszahlen", a.earnings_in_days === 0 ? "heute" : "in " + a.earnings_in_days + " T") : ""}</dl></div>`;
   document.body.classList.add("open");
+  setModal(true);
   $("#drawer").focus();
   if (push) history.pushState(null, "", "#w/" + encodeURIComponent(ticker));
   const recalc = () => { state.calc = { depot: +$("#c-depot").value, risk: +$("#c-risk").value }; store.set("calc", state.calc); $("#c-out").innerHTML = calcOutput(a); };
@@ -272,9 +275,14 @@ function drawPrice(a) {
   if (series[0].pts.length) series[0].pts.push([Date.parse(DATA.generated_at), a.price]);
   lineChart(box, series, { fmt: price, height: 260, hlines: [{ v: a.stop, label: "Stop", color: "var(--critical)" }, { v: a.target, label: "Ziel", color: "var(--good)" }] });
 }
+function setModal(open) {  // keep keyboard focus inside the open drawer and out of the closed one
+  $("#drawer").inert = !open;
+  $("main").inert = open; $(".top").inert = open;
+}
 function closeDrawer(push = true) {
   if (!document.body.classList.contains("open")) return;
   document.body.classList.remove("open");
+  setModal(false);
   state.open = null;
   if (push) history.pushState(null, "", location.pathname + location.search);
   lastFocus?.focus?.();
@@ -298,17 +306,18 @@ function toggleStar(ticker) {
 /* Portfolio */
 function renderPositions() {
   $("#positions thead").innerHTML = state.positions.length ? `<tr><th class="l">Wert</th><th>Stück</th><th>Kaufkurs</th><th>Kurs</th><th>Gewinn / Verlust</th><th class="l">Signal</th><th class="l">Hinweis</th><th></th></tr>` : "";
-  let cost = 0, value = 0;
+  const totals = {};
   $("#positions tbody").innerHTML = state.positions.map((p, i) => {
     const a = BY[p.t];
     if (!a) return `<tr><td class="l">${esc(p.t)}</td><td colspan="6" class="l">Aktuell keine Kursdaten.</td><td><button class="btn" type="button" data-del="${i}">Entfernen</button></td></tr>`;
-    const gain = a.price / p.p - 1, k = unit(a); cost += p.q * p.p * k; value += p.q * a.price * k;
+    const gain = a.price / p.p - 1, k = unit(a), sum = totals[currency(a)] ??= { cost: 0, value: 0 };
+    sum.cost += p.q * p.p * k; sum.value += p.q * a.price * k;
     const hint = a.long_signal === "Meiden" ? "Radar rät ab – Ausstieg prüfen" : a.vs_sma200 < 0 ? "Unter der 200-Tage-Linie" : a.rsi14 > 75 ? "Überkauft – nicht nachkaufen" : "Trend intakt, Stop bei " + price(a.stop);
     return `<tr class="row" data-open="${esc(p.t)}"><td class="name"><b>${esc(a.name)}</b><br><span class="tk">${esc(p.t)}</span></td><td>${num(p.q, p.q % 1 ? 4 : 0)}</td><td>${price(p.p)}</td><td>${price(a.price)}</td>
       <td>${pct(gain)} · ${price(p.q * (a.price - p.p) * k)}</td><td class="l">${badge(a.long_signal)}</td><td class="l">${esc(hint)}</td><td><button class="btn" type="button" data-del="${i}">Entfernen</button></td></tr>`;
   }).join("");
   $("#pos-sum").textContent = state.positions.length
-    ? (cost ? `Gesamt: ${pct(value / cost - 1)} auf den Einsatz. Währungen werden nicht umgerechnet.` : "")
+    ? Object.entries(totals).map(([cur, t]) => `${cur}: ${price(t.value)} Wert, ${pct(t.value / t.cost - 1)} auf den Einsatz`).join(" · ")
     : "Noch keine Position eingetragen.";
 }
 
