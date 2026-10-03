@@ -27,12 +27,32 @@ class Result:
     survivorship_bias: bool = False
 
 
-def portfolio_returns(close: pd.DataFrame, weights: pd.DataFrame, cost: float) -> pd.Series:
-    """Daily strategy returns after costs. `cost` is charged per unit of turnover (0.001 = 0.1 %)."""
-    asset_returns = close.pct_change(fill_method=None).fillna(0.0)
-    held = weights.shift(1).fillna(0.0)
-    turnover = (weights.fillna(0.0) - held).abs().sum(axis=1).shift(1).fillna(0.0)
-    return (held * asset_returns).sum(axis=1) - turnover * cost
+def portfolio_returns(close: pd.DataFrame, weights: pd.DataFrame, cost: float, monthly: bool = False) -> pd.Series:
+    """Daily strategy returns after costs. `cost` is charged per unit of turnover (0.001 = 0.1 %).
+
+    `weights` are target weights. The portfolio is traded to them on rebalance days only - every month
+    end if `monthly`, otherwise whenever the target changes - and drifts with prices in between, so
+    turnover is measured against what is actually held.
+    """
+    asset_returns = close.pct_change(fill_method=None).fillna(0.0).to_numpy()
+    targets = weights.fillna(0.0).to_numpy()
+    if monthly:
+        index = weights.index
+        rebalance = np.zeros(len(index), dtype=bool)
+        rebalance[index.get_indexer(weights.groupby([index.year, index.month]).tail(1).index)] = True
+    else:
+        rebalance = np.r_[targets[0].any(), (np.diff(targets, axis=0) != 0).any(axis=1)]
+
+    held = np.zeros(targets.shape[1])
+    out = np.zeros(len(targets))
+    for day in range(len(targets)):
+        gain = float(held @ asset_returns[day])
+        held = held * (1 + asset_returns[day]) / (1 + gain)
+        if rebalance[day]:  # trade on the close; the new weights earn from tomorrow
+            gain -= cost * np.abs(targets[day] - held).sum()
+            held = targets[day].copy()
+        out[day] = gain
+    return pd.Series(out, index=weights.index)
 
 
 def monthly_hold(weights: pd.DataFrame) -> pd.DataFrame:
@@ -128,19 +148,21 @@ def run_all(closes: dict[str, pd.DataFrame], cost: float = 0.001, crypto_cost: f
     etf, us, eu, crypto = closes["etf"], closes["us"], closes["eu"], closes["crypto"]
     results: list[Result] = []
 
-    def add(key, name, description, close, weights, cost_, ppy=252, biased=False):
+    def add(key, name, description, close, weights, cost_, ppy=252, biased=False, monthly=True):
         close = close.to_frame() if isinstance(close, pd.Series) else close
-        results.append(Result(key, name, description, portfolio_returns(close, weights, cost_), ppy, biased))
+        returns = portfolio_returns(close, weights, cost_, monthly)
+        results.append(Result(key, name, description, returns, ppy, biased))
 
     if "SPY" in etf:
         spy = etf["SPY"].dropna()
-        add("bh_spy", "Buy & Hold S&P 500", "Referenz: SPY kaufen und liegen lassen.", spy, buy_and_hold(spy), cost)
+        add("bh_spy", "Buy & Hold S&P 500", "Referenz: SPY kaufen und liegen lassen.", spy, buy_and_hold(spy), cost,
+            monthly=False)
         add("trend_spy", "Trendfolge S&P 500 (200-Tage-Linie)",
             "Investiert, solange SPY am Monatsende über der 200-Tage-Linie liegt, sonst Cash.",
             spy, trend_sma(spy), cost)
         add("rsi2_spy", "RSI(2)-Rücksetzer S&P 500",
             "Kauft scharfe Rücksetzer im Aufwärtstrend, verkauft über der 5-Tage-Linie.",
-            spy, rsi2_reversion(spy), cost)
+            spy, rsi2_reversion(spy), cost, monthly=False)
     gem = [t for t in ("SPY", "EFA", "IEF") if t in etf]
     if len(gem) == 3:
         sub = etf[gem].dropna()
@@ -161,7 +183,7 @@ def run_all(closes: dict[str, pd.DataFrame], cost: float = 0.001, crypto_cost: f
     if "BTC-USD" in crypto:
         btc = crypto["BTC-USD"].dropna()
         add("bh_btc", "Buy & Hold Bitcoin", "Referenz: Bitcoin kaufen und liegen lassen.",
-            btc, buy_and_hold(btc), crypto_cost, ppy=365)
+            btc, buy_and_hold(btc), crypto_cost, ppy=365, monthly=False)
         add("trend_btc", "Trendfolge Bitcoin (200-Tage-Linie)",
             "Investiert, solange Bitcoin am Monatsende über der 200-Tage-Linie liegt, sonst Cash.",
             btc, trend_sma(btc), crypto_cost, ppy=365)

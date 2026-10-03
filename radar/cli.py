@@ -8,6 +8,8 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pandas as pd
+
 from . import ai, backtest, fundamentals, regime, report, scoring
 from .data import MARKETS, all_tickers, clean_market, download_prices, load_universe
 
@@ -29,12 +31,16 @@ def run(data_dir: Path, out_dir: Path, with_fundamentals: bool = True) -> dict:
     stocks = [t for m in ("us", "eu") for t in universe[m]["tickers"]]
     fundamental_data = fundamentals.load(data_dir / "fundamentals.json", stocks, refresh=with_fundamentals)
 
+    today = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize()
     assets, closes, dropped = [], {}, []
     for market in MARKETS:
         tickers = list(universe[market]["tickers"])
-        cleaned, gone = clean_market(prices.subset(tickers))
+        cleaned, gone = clean_market(prices.subset(tickers), now=today)
         dropped += gone + [t for t in tickers if t not in prices.close.columns]
         closes[market] = cleaned.close
+        if cleaned.close.empty:  # Yahoo returned nothing usable for this market; publish the others
+            log.warning("Keine aktuellen Kursdaten für den Markt %s", market)
+            continue
         periods = 365 if market == "crypto" else 252
         quality = fundamentals.quality_rank(fundamental_data, tickers) if market in ("us", "eu") else None
         # Crypto follows its own cycle, so the equity regime does not gate it.

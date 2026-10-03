@@ -70,6 +70,52 @@ def test_costs_are_charged_on_turnover():
     assert returns.sum() == pytest.approx(-0.002)  # one buy and one sell
 
 
+def test_holdings_drift_between_rebalances():
+    close = pd.DataFrame({"A": [100.0, 200.0, 200.0], "B": [100.0, 100.0, 200.0]}, index=days(3))
+    weights = pd.DataFrame(0.5, index=days(3), columns=["A", "B"])
+    returns = backtest.portfolio_returns(close, weights, cost=0.0)
+    assert (1 + returns).prod() == pytest.approx(2.0)  # bought once and held: 50 + 50 -> 100 + 100
+
+
+def test_monthly_rebalance_trades_back_to_target_and_pays_for_it():
+    index = pd.bdate_range("2024-01-01", "2024-03-29")
+    close = pd.DataFrame({"A": np.linspace(100, 200, len(index)), "B": 100.0}, index=index)
+    weights = pd.DataFrame(0.5, index=index, columns=["A", "B"])
+    free = backtest.portfolio_returns(close, weights, cost=0.0, monthly=True)
+    paid = backtest.portfolio_returns(close, weights, cost=0.01, monthly=True)
+    month_ends = index.to_series().groupby([index.year, index.month]).max()
+    assert set(index[(free - paid) > 1e-12]) == set(month_ends)
+
+
+def test_empty_model_variable_falls_back_to_the_default(monkeypatch):
+    import anthropic
+
+    from radar import ai
+
+    seen = {}
+
+    class Messages:
+        def create(self, **kwargs):
+            seen.update(kwargs)
+            raise anthropic.APIConnectionError(request=None)
+
+    class Client:
+        beta = type("Beta", (), {"messages": Messages()})()
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setenv("RADAR_MODEL", "")
+    monkeypatch.setattr(anthropic, "Anthropic", Client)
+    assert ai.commentary({"regime": {"state": "risk_on"}, "picks": {}}, None) is None
+    assert seen["model"] == ai.DEFAULT_MODEL
+
+
+def test_clean_market_measures_staleness_against_the_given_date():
+    close = pd.DataFrame({"OLD": trending(400, 0.001)})
+    later = close.index.max() + pd.Timedelta(days=30)
+    cleaned, dropped = clean_market(as_prices(close), now=later)
+    assert dropped == ["OLD"] and cleaned.close.empty
+
+
 def test_trend_strategy_leaves_a_falling_market():
     close = pd.concat([trending(400, 0.001), trending(400, -0.002, start=149)]).reset_index(drop=True)
     close.index = days(800)

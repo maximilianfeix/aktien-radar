@@ -43,7 +43,7 @@ def commentary(payload: dict, previous: dict | None) -> dict | None:
 
     import anthropic
 
-    model = os.environ.get("RADAR_MODEL", DEFAULT_MODEL)
+    model = os.environ.get("RADAR_MODEL") or DEFAULT_MODEL  # the workflow passes "" when unset
     try:
         response = anthropic.Anthropic().beta.messages.create(
             model=model,
